@@ -7,52 +7,61 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100">
-  <div class="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.22),transparent_35%),radial-gradient(circle_at_80%_10%,rgba(168,85,247,0.2),transparent_35%),radial-gradient(circle_at_50%_80%,rgba(34,197,94,0.15),transparent_30%)]"></div>
+  <div class="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_10%,rgba(56,189,248,0.25),transparent_35%),radial-gradient(circle_at_85%_10%,rgba(168,85,247,0.25),transparent_35%),radial-gradient(circle_at_50%_85%,rgba(45,212,191,0.18),transparent_35%)]"></div>
 
-  <main class="max-w-6xl mx-auto px-6 py-10 space-y-6">
-    <header class="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-6">
-      <p class="text-xs uppercase tracking-[0.2em] text-cyan-300">Prototype</p>
-      <h1 class="text-3xl font-bold mt-2">AI Scope Creep Assistant</h1>
-      <p class="text-slate-300 mt-2">Analyze client thread requests against baseline scope and draft a change-order summary.</p>
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-5 sm:space-y-6">
+    <header class="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5 sm:p-6">
+      <div class="flex flex-wrap items-center gap-2 mb-2">
+        <span class="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-cyan-300">ScopeGuard Prototype v2</span>
+        <span class="text-[10px] px-2 py-0.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 text-emerald-300">Local-first</span>
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-bold">AI Scope Creep Assistant</h1>
+      <p class="text-slate-300 mt-2 text-sm sm:text-base">Detect likely out-of-scope requests from Slack thread text and generate an editable change-order draft.</p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4 text-xs">
+        <div class="rounded-lg border border-white/10 bg-slate-900/50 px-3 py-2"><span class="text-slate-400">Step 1</span><div class="font-medium">Paste baseline + thread</div></div>
+        <div class="rounded-lg border border-white/10 bg-slate-900/50 px-3 py-2"><span class="text-slate-400">Step 2</span><div class="font-medium">Review flagged deltas</div></div>
+        <div class="rounded-lg border border-white/10 bg-slate-900/50 px-3 py-2"><span class="text-slate-400">Step 3</span><div class="font-medium">Generate + export draft</div></div>
+      </div>
     </header>
 
-    <section class="grid md:grid-cols-2 gap-6">
-      <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <section class="grid lg:grid-cols-2 gap-5">
+      <div class="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
         <label class="block text-sm text-slate-300 mb-2">Project name</label>
         <input id="project" value="Website Redesign + CMS Migration" class="w-full rounded-xl bg-slate-900/80 border border-slate-700 px-4 py-3" />
 
-        <label class="block text-sm text-slate-300 mt-5 mb-2">Baseline scope</label>
-        <textarea id="baseline" class="w-full rounded-xl bg-slate-900/80 border border-slate-700 px-4 py-3 min-h-[170px]">Website redesign, CMS migration, homepage copy updates.</textarea>
+        <label class="block text-sm text-slate-300 mt-4 mb-2">Baseline scope</label>
+        <textarea id="baseline" class="w-full rounded-xl bg-slate-900/80 border border-slate-700 px-4 py-3 min-h-[160px]">Website redesign, CMS migration, homepage copy updates.</textarea>
       </div>
 
-      <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div class="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
         <label class="block text-sm text-slate-300 mb-2">Thread messages (one per line)</label>
-        <textarea id="thread" class="w-full rounded-xl bg-slate-900/80 border border-slate-700 px-4 py-3 min-h-[260px]">Please complete website redesign and CMS migration this sprint.
+        <textarea id="thread" class="w-full rounded-xl bg-slate-900/80 border border-slate-700 px-4 py-3 min-h-[240px]">Please complete website redesign and CMS migration this sprint.
 Also can you add a gated resource hub for lead magnets?
 Could we include a partner portal for resellers next month?
 Can you update the homepage hero copy?</textarea>
 
         <div class="flex flex-wrap items-center gap-3 mt-4">
-          <button id="analyze" class="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold">Analyze thread</button>
+          <button id="analyze" class="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-semibold">Analyze thread</button>
           <span id="status" class="text-sm text-cyan-200"></span>
         </div>
       </div>
     </section>
 
-    <section class="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <section class="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="text-xl font-semibold">Assessment Results</h2>
+        <h2 class="text-lg sm:text-xl font-semibold">Assessment Results</h2>
         <span class="text-xs text-slate-400">Accept items to include in change order</span>
       </div>
       <div id="results" class="overflow-x-auto text-sm"></div>
     </section>
 
-    <section class="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <section class="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
       <div class="flex flex-wrap gap-3 items-center justify-between">
-        <h2 class="text-xl font-semibold">Change-order Draft</h2>
+        <h2 class="text-lg sm:text-xl font-semibold">Change-order Draft</h2>
         <div class="flex gap-2">
-          <button id="draft" class="px-4 py-2 rounded-xl bg-violet-500 hover:bg-violet-400 text-white font-medium">Generate draft</button>
-          <button id="download" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-medium">Download Markdown</button>
+          <button id="draft" class="px-4 py-2 rounded-xl bg-violet-500 hover:bg-violet-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium">Generate draft</button>
+          <button id="download" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-medium">Download Markdown</button>
         </div>
       </div>
       <pre id="draftOut" class="mt-4 p-4 rounded-xl bg-slate-900/80 border border-slate-700 text-slate-100 whitespace-pre-wrap min-h-[220px]"></pre>
@@ -63,6 +72,7 @@ Can you update the homepage hero copy?</textarea>
 const $ = (id) => document.getElementById(id);
 let accepted = [];
 let latestMarkdown = '';
+let assessments = [];
 
 function labelBadge(label) {
   if (label === 'likely_out_of_scope') return '<span class="px-2 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-400/40">likely_out_of_scope</span>';
@@ -70,19 +80,19 @@ function labelBadge(label) {
   return '<span class="px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">in_scope</span>';
 }
 
-$('analyze').onclick = async () => {
-  $('status').textContent = 'Analyzing...';
-  const messages = $('thread').value.split('\n').map(x=>x.trim()).filter(Boolean);
-  const res = await fetch('/api/analyze', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ baselineScope: $('baseline').value, messages })
-  });
-  const data = await res.json();
-  accepted = data.assessments.filter(a => a.label === 'likely_out_of_scope');
+function updateButtons() {
+  $('draft').disabled = accepted.length === 0;
+  $('download').disabled = !latestMarkdown;
+}
 
-  const rows = data.assessments.map(a => `
+function renderEmptyState(text) {
+  $('results').innerHTML = `<div class="rounded-xl border border-dashed border-white/20 text-slate-300 p-6 text-center">${text}</div>`;
+}
+
+function renderResults(data) {
+  const rows = data.map(a => `
 <tr class="border-b border-white/10 hover:bg-white/5">
-  <td class="p-2 text-center"><input type="checkbox" data-id="${a.id}" ${a.label==='likely_out_of_scope'?'checked':''}></td>
+  <td class="p-2 text-center"><input type="checkbox" data-id="${a.id}" ${accepted.some(x => x.id===a.id)?'checked':''}></td>
   <td class="p-2">${a.text}</td>
   <td class="p-2">${labelBadge(a.label)}</td>
   <td class="p-2">${a.confidence}</td>
@@ -91,31 +101,82 @@ $('analyze').onclick = async () => {
 
   $('results').innerHTML = `<table class="w-full border border-white/10 rounded-xl overflow-hidden">
     <thead class="bg-white/10 text-left">
-      <tr><th class="p-2 w-16 text-center">Accept</th><th class="p-2">Message</th><th class="p-2 w-56">Label</th><th class="p-2 w-28">Confidence</th><th class="p-2">Rationale</th></tr>
+      <tr><th class="p-2 w-16 text-center">Accept</th><th class="p-2">Message</th><th class="p-2 w-56">Label</th><th class="p-2 w-24">Conf.</th><th class="p-2">Rationale</th></tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>`;
 
   document.querySelectorAll('input[type="checkbox"]').forEach(chk => chk.addEventListener('change', () => {
     const id = Number(chk.dataset.id);
-    const item = data.assessments.find(a => a.id === id);
+    const item = assessments.find(a => a.id === id);
     if (chk.checked) {
       if (!accepted.find(a => a.id === id)) accepted.push(item);
     } else {
       accepted = accepted.filter(a => a.id !== id);
     }
+    $('status').textContent = `Ready. ${accepted.length} accepted item(s).`;
+    updateButtons();
   }));
-  $('status').textContent = `Done. ${accepted.length} accepted items.`;
+}
+
+$('analyze').onclick = async () => {
+  const messages = $('thread').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  if (messages.length === 0) {
+    $('status').textContent = 'Please add at least one thread message.';
+    renderEmptyState('No messages provided yet.');
+    return;
+  }
+
+  $('analyze').disabled = true;
+  $('status').textContent = 'Analyzing…';
+  renderEmptyState('Running scope analysis…');
+
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ baselineScope: $('baseline').value, messages })
+    });
+    const data = await res.json();
+    assessments = data.assessments || [];
+    accepted = assessments.filter(a => a.label === 'likely_out_of_scope');
+    latestMarkdown = '';
+    $('draftOut').textContent = '';
+
+    if (assessments.length === 0) {
+      renderEmptyState('No analysis results available.');
+      $('status').textContent = 'No results returned.';
+    } else {
+      renderResults(assessments);
+      $('status').textContent = `Done. ${accepted.length} pre-selected out-of-scope item(s).`;
+    }
+  } catch (e) {
+    renderEmptyState('Analysis failed. Please retry.');
+    $('status').textContent = 'Error during analysis.';
+  } finally {
+    $('analyze').disabled = false;
+    updateButtons();
+  }
 };
 
 $('draft').onclick = async () => {
-  const res = await fetch('/api/draft', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ projectName: $('project').value, acceptedItems: accepted })
-  });
-  const data = await res.json();
-  latestMarkdown = data.markdown || '';
-  $('draftOut').textContent = latestMarkdown;
+  $('draft').disabled = true;
+  $('draftOut').textContent = 'Generating draft…';
+  try {
+    const res = await fetch('/api/draft', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ projectName: $('project').value, acceptedItems: accepted })
+    });
+    const data = await res.json();
+    latestMarkdown = data.markdown || '';
+    $('draftOut').textContent = latestMarkdown || 'No draft generated.';
+    $('status').textContent = 'Draft generated successfully.';
+  } catch (e) {
+    $('draftOut').textContent = 'Draft generation failed. Please retry.';
+    $('status').textContent = 'Draft generation failed.';
+  } finally {
+    $('draft').disabled = false;
+    updateButtons();
+  }
 };
 
 $('download').onclick = () => {
@@ -127,7 +188,12 @@ $('download').onclick = () => {
   a.download = 'change-order-draft.md';
   a.click();
   URL.revokeObjectURL(url);
+  $('status').textContent = 'Markdown downloaded.';
 };
+
+renderEmptyState('Run analysis to see message-level scope labels.');
+$('draftOut').textContent = 'Generate a draft to preview change-order output.';
+updateButtons();
 </script>
 </body>
 </html>
