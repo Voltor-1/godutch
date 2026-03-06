@@ -1,4 +1,6 @@
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
 function parseJson(req) {
   return new Promise((resolve, reject) => {
@@ -60,6 +62,12 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true }));
+  }
+
+  if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
+    const file = path.join(__dirname, '..', 'web', 'index.html');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(fs.readFileSync(file, 'utf8'));
   }
 
   res.writeHead(404, { 'Content-Type': 'application/json' });

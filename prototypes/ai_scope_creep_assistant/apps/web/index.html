@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AI Scope Creep Assistant</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 980px; margin: 20px auto; }
+    textarea, input { width: 100%; margin: 6px 0 12px; }
+    textarea { min-height: 120px; }
+    .row { display:flex; gap: 10px; }
+    .col { flex: 1; }
+    table { width:100%; border-collapse: collapse; margin-top:10px; }
+    th, td { border:1px solid #ddd; padding:6px; font-size: 14px; }
+    .muted { color:#666; font-size:12px; }
+    pre { background:#f6f6f6; padding:12px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>AI Scope Creep Assistant (1-day prototype)</h1>
+  <label>Project name</label>
+  <input id="project" value="Website Redesign + CMS Migration" />
+
+  <label>Baseline scope (SOW bullets/text)</label>
+  <textarea id="baseline">Website redesign, CMS migration, homepage copy updates.</textarea>
+
+  <label>Thread messages (one per line)</label>
+  <textarea id="thread">Please complete website redesign and CMS migration this sprint.
+Also can you add a gated resource hub for lead magnets?
+Could we include a partner portal for resellers next month?
+Can you update the homepage hero copy?</textarea>
+
+  <button id="analyze">Analyze</button>
+  <span class="muted" id="status"></span>
+
+  <div id="results"></div>
+
+  <h2>Change-order draft</h2>
+  <button id="draft">Generate draft from accepted items</button>
+  <pre id="draftOut"></pre>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let accepted = [];
+
+$('analyze').onclick = async () => {
+  $('status').textContent = 'Analyzing...';
+  const messages = $('thread').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  const res = await fetch('/api/analyze', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ baselineScope: $('baseline').value, messages })
+  });
+  const data = await res.json();
+  accepted = data.assessments.filter(a => a.label === 'likely_out_of_scope');
+
+  const rows = data.assessments.map(a => `\n<tr>\n<td><input type="checkbox" data-id="${a.id}" ${a.label==='likely_out_of_scope'?'checked':''}></td>\n<td>${a.text}</td>\n<td>${a.label}</td>\n<td>${a.confidence}</td>\n<td>${a.rationale}</td>\n</tr>`).join('');
+  $('results').innerHTML = `<table><tr><th>Accept</th><th>Message</th><th>Label</th><th>Confidence</th><th>Rationale</th></tr>${rows}</table>`;
+
+  document.querySelectorAll('input[type="checkbox"]').forEach(chk => chk.addEventListener('change', () => {
+    const id = Number(chk.dataset.id);
+    const item = data.assessments.find(a => a.id === id);
+    if (chk.checked) {
+      if (!accepted.find(a => a.id === id)) accepted.push(item);
+    } else {
+      accepted = accepted.filter(a => a.id !== id);
+    }
+  }));
+  $('status').textContent = `Done. ${accepted.length} accepted items.`;
+};
+
+$('draft').onclick = async () => {
+  const res = await fetch('/api/draft', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ projectName: $('project').value, acceptedItems: accepted })
+  });
+  const data = await res.json();
+  $('draftOut').textContent = data.markdown;
+};
+</script>
+</body>
+</html>
