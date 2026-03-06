@@ -1,0 +1,4 @@
+Client: Please complete website redesign and CMS migration this sprint.
+Client: Also can you add a gated resource hub for lead magnets?
+Client: Could we include a partner portal for resellers next month?
+Client: Can you update the homepage hero copy?
