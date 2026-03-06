@@ -36,11 +36,13 @@ Can you update the homepage hero copy?</textarea>
 
   <h2>Change-order draft</h2>
   <button id="draft">Generate draft from accepted items</button>
+  <button id="download">Download Markdown</button>
   <pre id="draftOut"></pre>
 
 <script>
 const $ = (id) => document.getElementById(id);
 let accepted = [];
+let latestMarkdown = '';
 
 $('analyze').onclick = async () => {
   $('status').textContent = 'Analyzing...';
@@ -73,7 +75,19 @@ $('draft').onclick = async () => {
     body: JSON.stringify({ projectName: $('project').value, acceptedItems: accepted })
   });
   const data = await res.json();
-  $('draftOut').textContent = data.markdown;
+  latestMarkdown = data.markdown || '';
+  $('draftOut').textContent = latestMarkdown;
+};
+
+$('download').onclick = () => {
+  if (!latestMarkdown) return;
+  const blob = new Blob([latestMarkdown], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'change-order-draft.md';
+  a.click();
+  URL.revokeObjectURL(url);
 };
 </script>
 </body>
