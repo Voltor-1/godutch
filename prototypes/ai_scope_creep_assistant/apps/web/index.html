@@ -1,48 +1,74 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AI Scope Creep Assistant</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 980px; margin: 20px auto; }
-    textarea, input { width: 100%; margin: 6px 0 12px; }
-    textarea { min-height: 120px; }
-    .row { display:flex; gap: 10px; }
-    .col { flex: 1; }
-    table { width:100%; border-collapse: collapse; margin-top:10px; }
-    th, td { border:1px solid #ddd; padding:6px; font-size: 14px; }
-    .muted { color:#666; font-size:12px; }
-    pre { background:#f6f6f6; padding:12px; white-space: pre-wrap; }
-  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h1>AI Scope Creep Assistant (1-day prototype)</h1>
-  <label>Project name</label>
-  <input id="project" value="Website Redesign + CMS Migration" />
+<body class="min-h-screen bg-slate-950 text-slate-100">
+  <div class="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.22),transparent_35%),radial-gradient(circle_at_80%_10%,rgba(168,85,247,0.2),transparent_35%),radial-gradient(circle_at_50%_80%,rgba(34,197,94,0.15),transparent_30%)]"></div>
 
-  <label>Baseline scope (SOW bullets/text)</label>
-  <textarea id="baseline">Website redesign, CMS migration, homepage copy updates.</textarea>
+  <main class="max-w-6xl mx-auto px-6 py-10 space-y-6">
+    <header class="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-6">
+      <p class="text-xs uppercase tracking-[0.2em] text-cyan-300">Prototype</p>
+      <h1 class="text-3xl font-bold mt-2">AI Scope Creep Assistant</h1>
+      <p class="text-slate-300 mt-2">Analyze client thread requests against baseline scope and draft a change-order summary.</p>
+    </header>
 
-  <label>Thread messages (one per line)</label>
-  <textarea id="thread">Please complete website redesign and CMS migration this sprint.
+    <section class="grid md:grid-cols-2 gap-6">
+      <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <label class="block text-sm text-slate-300 mb-2">Project name</label>
+        <input id="project" value="Website Redesign + CMS Migration" class="w-full rounded-xl bg-slate-900/80 border border-slate-700 px-4 py-3" />
+
+        <label class="block text-sm text-slate-300 mt-5 mb-2">Baseline scope</label>
+        <textarea id="baseline" class="w-full rounded-xl bg-slate-900/80 border border-slate-700 px-4 py-3 min-h-[170px]">Website redesign, CMS migration, homepage copy updates.</textarea>
+      </div>
+
+      <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <label class="block text-sm text-slate-300 mb-2">Thread messages (one per line)</label>
+        <textarea id="thread" class="w-full rounded-xl bg-slate-900/80 border border-slate-700 px-4 py-3 min-h-[260px]">Please complete website redesign and CMS migration this sprint.
 Also can you add a gated resource hub for lead magnets?
 Could we include a partner portal for resellers next month?
 Can you update the homepage hero copy?</textarea>
 
-  <button id="analyze">Analyze</button>
-  <span class="muted" id="status"></span>
+        <div class="flex flex-wrap items-center gap-3 mt-4">
+          <button id="analyze" class="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold">Analyze thread</button>
+          <span id="status" class="text-sm text-cyan-200"></span>
+        </div>
+      </div>
+    </section>
 
-  <div id="results"></div>
+    <section class="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-semibold">Assessment Results</h2>
+        <span class="text-xs text-slate-400">Accept items to include in change order</span>
+      </div>
+      <div id="results" class="overflow-x-auto text-sm"></div>
+    </section>
 
-  <h2>Change-order draft</h2>
-  <button id="draft">Generate draft from accepted items</button>
-  <button id="download">Download Markdown</button>
-  <pre id="draftOut"></pre>
+    <section class="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div class="flex flex-wrap gap-3 items-center justify-between">
+        <h2 class="text-xl font-semibold">Change-order Draft</h2>
+        <div class="flex gap-2">
+          <button id="draft" class="px-4 py-2 rounded-xl bg-violet-500 hover:bg-violet-400 text-white font-medium">Generate draft</button>
+          <button id="download" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-medium">Download Markdown</button>
+        </div>
+      </div>
+      <pre id="draftOut" class="mt-4 p-4 rounded-xl bg-slate-900/80 border border-slate-700 text-slate-100 whitespace-pre-wrap min-h-[220px]"></pre>
+    </section>
+  </main>
 
 <script>
 const $ = (id) => document.getElementById(id);
 let accepted = [];
 let latestMarkdown = '';
+
+function labelBadge(label) {
+  if (label === 'likely_out_of_scope') return '<span class="px-2 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-400/40">likely_out_of_scope</span>';
+  if (label === 'unclear') return '<span class="px-2 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40">unclear</span>';
+  return '<span class="px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">in_scope</span>';
+}
 
 $('analyze').onclick = async () => {
   $('status').textContent = 'Analyzing...';
@@ -54,8 +80,21 @@ $('analyze').onclick = async () => {
   const data = await res.json();
   accepted = data.assessments.filter(a => a.label === 'likely_out_of_scope');
 
-  const rows = data.assessments.map(a => `\n<tr>\n<td><input type="checkbox" data-id="${a.id}" ${a.label==='likely_out_of_scope'?'checked':''}></td>\n<td>${a.text}</td>\n<td>${a.label}</td>\n<td>${a.confidence}</td>\n<td>${a.rationale}</td>\n</tr>`).join('');
-  $('results').innerHTML = `<table><tr><th>Accept</th><th>Message</th><th>Label</th><th>Confidence</th><th>Rationale</th></tr>${rows}</table>`;
+  const rows = data.assessments.map(a => `
+<tr class="border-b border-white/10 hover:bg-white/5">
+  <td class="p-2 text-center"><input type="checkbox" data-id="${a.id}" ${a.label==='likely_out_of_scope'?'checked':''}></td>
+  <td class="p-2">${a.text}</td>
+  <td class="p-2">${labelBadge(a.label)}</td>
+  <td class="p-2">${a.confidence}</td>
+  <td class="p-2 text-slate-300">${a.rationale}</td>
+</tr>`).join('');
+
+  $('results').innerHTML = `<table class="w-full border border-white/10 rounded-xl overflow-hidden">
+    <thead class="bg-white/10 text-left">
+      <tr><th class="p-2 w-16 text-center">Accept</th><th class="p-2">Message</th><th class="p-2 w-56">Label</th><th class="p-2 w-28">Confidence</th><th class="p-2">Rationale</th></tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 
   document.querySelectorAll('input[type="checkbox"]').forEach(chk => chk.addEventListener('change', () => {
     const id = Number(chk.dataset.id);
