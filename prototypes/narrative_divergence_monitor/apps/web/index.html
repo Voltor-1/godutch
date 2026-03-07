@@ -21,13 +21,28 @@
           <option value="2">Last 2</option>
         </select>
       </label>
+      <label class="text-sm">Alert threshold
+        <input id="threshold" type="number" min="0" max="1" step="0.05" value="0.4" class="ml-1 w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1">
+      </label>
       <button id="export" class="px-3 py-2 rounded bg-emerald-500 text-slate-900 font-semibold">Export Markdown</button>
     </div>
 
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div class="border border-white/20 rounded p-3 bg-slate-900/50"><div class="text-xs text-slate-400">Points analyzed</div><div id="kpiPoints" class="text-2xl font-bold">0</div></div>
+      <div class="border border-white/20 rounded p-3 bg-slate-900/50"><div class="text-xs text-slate-400">Alerts</div><div id="kpiAlerts" class="text-2xl font-bold text-rose-300">0</div></div>
+      <div class="border border-white/20 rounded p-3 bg-slate-900/50"><div class="text-xs text-slate-400">Max divergence</div><div id="kpiMax" class="text-2xl font-bold text-cyan-300">0.00</div></div>
+    </div>
+
     <div id="summary" class="text-sm text-cyan-200"></div>
-    <div class="border border-white/20 rounded p-3 bg-slate-900/50">
-      <h2 class="font-semibold mb-2">Divergence Trend</h2>
-      <canvas id="chart" width="900" height="220" class="w-full bg-slate-950 rounded"></canvas>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div class="border border-white/20 rounded p-3 bg-slate-900/50">
+        <h2 class="font-semibold mb-2">Divergence Trend</h2>
+        <canvas id="chart" width="900" height="220" class="w-full bg-slate-950 rounded"></canvas>
+      </div>
+      <div class="border border-white/20 rounded p-3 bg-slate-900/50">
+        <h2 class="font-semibold mb-2">Market vs Narrative</h2>
+        <canvas id="lineChart" width="900" height="220" class="w-full bg-slate-950 rounded"></canvas>
+      </div>
     </div>
     <div id="tbl" class="overflow-x-auto"></div>
   </main>
@@ -37,7 +52,8 @@ const $=id=>document.getElementById(id);
 let allPoints = [];
 
 function filteredPoints() {
-  let pts = [...allPoints];
+  const threshold = Number($('threshold').value || 0.4);
+  let pts = allPoints.map(p => ({ ...p, alert: (Math.sign(p.market) !== Math.sign(p.narrative)) && p.divergence >= threshold }));
   const w = $('window').value;
   if (w !== 'all') pts = pts.slice(-Number(w));
   if ($('alertsOnly').checked) pts = pts.filter(p => p.alert);
@@ -79,6 +95,33 @@ function renderChart(points) {
   ctx.stroke();
 }
 
+function renderLineChart(points) {
+  const canvas = $('lineChart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#0f172a'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  if (!points.length) return;
+
+  const minV = Math.min(...points.flatMap(p => [p.market, p.narrative]), -1);
+  const maxV = Math.max(...points.flatMap(p => [p.market, p.narrative]), 1);
+  const toXY = (v, i, len) => {
+    const x = 20 + (i * ((canvas.width - 40) / Math.max(1, len-1)));
+    const y = 20 + ((maxV - v) / (maxV - minV || 1)) * 160;
+    return [x,y];
+  };
+
+  function drawSeries(key, color) {
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+    points.forEach((p,i)=>{ const [x,y]=toXY(p[key],i,points.length); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+    ctx.stroke();
+  }
+
+  drawSeries('market', '#22d3ee');
+  drawSeries('narrative', '#a78bfa');
+  ctx.fillStyle = '#22d3ee'; ctx.fillText('Market', 20, 200);
+  ctx.fillStyle = '#a78bfa'; ctx.fillText('Narrative', 90, 200);
+}
+
 function renderTable(points) {
   const rows=points.map(p=>`<tr class="border-b border-white/10"><td class="p-2">${p.t}</td><td class="p-2">${p.market}</td><td class="p-2">${p.narrative}</td><td class="p-2">${p.divergence.toFixed(2)}</td><td class="p-2">${p.alert?'⚠️ yes':'-'}</td></tr>`).join('');
   $('tbl').innerHTML=`<table class="w-full text-sm border border-white/20"><thead><tr class="bg-white/10"><th class="p-2">Time</th><th class="p-2">Market</th><th class="p-2">Narrative</th><th class="p-2">Div.</th><th class="p-2">Alert</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="p-3 text-slate-400">No rows for current filter</td></tr>'}</tbody></table>`;
@@ -87,8 +130,13 @@ function renderTable(points) {
 function render() {
   const points = filteredPoints();
   const alerts=points.filter(p=>p.alert).length;
-  $('summary').textContent=`Points: ${points.length} | Alerts: ${alerts}`;
+  const maxDiv = points.length ? Math.max(...points.map(p=>p.divergence)) : 0;
+  $('summary').textContent=`Points: ${points.length} | Alerts: ${alerts} | Threshold: ${$('threshold').value}`;
+  $('kpiPoints').textContent = String(points.length);
+  $('kpiAlerts').textContent = String(alerts);
+  $('kpiMax').textContent = maxDiv.toFixed(2);
   renderChart(points);
+  renderLineChart(points);
   renderTable(points);
 }
 
@@ -101,6 +149,7 @@ $('load').onclick=async()=>{
 
 $('alertsOnly').onchange = render;
 $('window').onchange = render;
+$('threshold').onchange = render;
 
 $('export').onclick = () => {
   const points = filteredPoints();
