@@ -34,6 +34,7 @@
     </div>
 
     <div id="summary" class="text-sm text-cyan-200"></div>
+    <div id="takeaways" class="text-sm border border-white/20 rounded p-3 bg-slate-900/50 text-slate-200">Load data to generate key takeaways.</div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
       <div class="border border-white/20 rounded p-3 bg-slate-900/50">
         <h2 class="font-semibold mb-2">Divergence Trend</h2>
@@ -156,6 +157,13 @@ function render() {
   $('kpiPoints').textContent = String(points.length);
   $('kpiAlerts').textContent = String(alerts);
   $('kpiMax').textContent = maxDiv.toFixed(2);
+
+  const avgDiv = points.length ? (points.reduce((a,p)=>a+p.divergence,0)/points.length) : 0;
+  const strongest = points.length ? [...points].sort((a,b)=>b.divergence-a.divergence)[0] : null;
+  $('takeaways').innerHTML = `<b>Key takeaways:</b> avg divergence <b>${avgDiv.toFixed(2)}</b>; ` +
+    (strongest ? `strongest event at <b>${strongest.t}</b> (${strongest.divergence.toFixed(2)}). ` : 'no strongest event. ') +
+    (alerts ? `<span class="text-rose-300">${alerts} alert event(s) need review.</span>` : `<span class="text-emerald-300">No critical divergence alerts in current view.</span>`);
+
   renderChart(points);
   renderLineChart(points);
   renderTable(points);
