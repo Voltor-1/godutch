@@ -1,6 +1,117 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Narrative Divergence Monitor</title><script src="https://cdn.tailwindcss.com"></script></head>
-<body class="bg-slate-950 text-slate-100 min-h-screen p-6"><main class="max-w-5xl mx-auto space-y-4"><h1 class="text-3xl font-bold">Narrative Divergence Monitor</h1><p class="text-slate-300">Early demo: compare market signal vs public narrative signal and flag divergence.</p><button id="load" class="px-4 py-2 rounded bg-cyan-500 text-slate-900 font-semibold">Load sample + analyze</button><div id="summary" class="text-sm text-cyan-200"></div><div id="tbl" class="overflow-x-auto"></div></main>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Narrative Divergence Monitor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6">
+  <main class="max-w-5xl mx-auto space-y-4">
+    <h1 class="text-3xl font-bold">Narrative Divergence Monitor</h1>
+    <p class="text-slate-300">Early demo: compare market signal vs public narrative signal and flag divergence.</p>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <button id="load" class="px-4 py-2 rounded bg-cyan-500 text-slate-900 font-semibold">Load sample + analyze</button>
+      <label class="text-sm flex items-center gap-2"><input id="alertsOnly" type="checkbox"> Alerts only</label>
+      <label class="text-sm">Window
+        <select id="window" class="ml-1 bg-slate-900 border border-slate-700 rounded px-2 py-1">
+          <option value="all">All</option>
+          <option value="3">Last 3</option>
+          <option value="2">Last 2</option>
+        </select>
+      </label>
+      <button id="export" class="px-3 py-2 rounded bg-emerald-500 text-slate-900 font-semibold">Export Markdown</button>
+    </div>
+
+    <div id="summary" class="text-sm text-cyan-200"></div>
+    <div class="border border-white/20 rounded p-3 bg-slate-900/50">
+      <h2 class="font-semibold mb-2">Divergence Trend</h2>
+      <canvas id="chart" width="900" height="220" class="w-full bg-slate-950 rounded"></canvas>
+    </div>
+    <div id="tbl" class="overflow-x-auto"></div>
+  </main>
+
 <script>
 const $=id=>document.getElementById(id);
-$('load').onclick=async()=>{const r=await fetch('/api/sample');const d=await r.json();const alerts=d.points.filter(p=>p.alert).length;$('summary').textContent=`Points: ${d.points.length} | Alerts: ${alerts}`;const rows=d.points.map(p=>`<tr class="border-b border-white/10"><td class="p-2">${p.t}</td><td class="p-2">${p.market}</td><td class="p-2">${p.narrative}</td><td class="p-2">${p.divergence.toFixed(2)}</td><td class="p-2">${p.alert?'⚠️ yes':'-'}</td></tr>`).join('');$('tbl').innerHTML=`<table class="w-full text-sm border border-white/20"><thead><tr class="bg-white/10"><th class="p-2">Time</th><th class="p-2">Market</th><th class="p-2">Narrative</th><th class="p-2">Div.</th><th class="p-2">Alert</th></tr></thead><tbody>${rows}</tbody></table>`;}
-</script></body></html>
+let allPoints = [];
+
+function filteredPoints() {
+  let pts = [...allPoints];
+  const w = $('window').value;
+  if (w !== 'all') pts = pts.slice(-Number(w));
+  if ($('alertsOnly').checked) pts = pts.filter(p => p.alert);
+  return pts;
+}
+
+function renderChart(points) {
+  const canvas = $('chart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  if (!points.length) {
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '16px sans-serif';
+    ctx.fillText('No data for selected filters', 20, 40);
+    return;
+  }
+
+  const max = Math.max(...points.map(p => p.divergence), 1);
+  const barW = Math.max(24, Math.floor((canvas.width - 40) / points.length) - 10);
+  points.forEach((p, i) => {
+    const x = 20 + i * (barW + 10);
+    const h = Math.round((p.divergence / max) * 150);
+    const y = 180 - h;
+    ctx.fillStyle = p.alert ? '#f43f5e' : '#22d3ee';
+    ctx.fillRect(x, y, barW, h);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '12px sans-serif';
+    ctx.fillText(p.t, x, 200);
+  });
+
+  ctx.strokeStyle = '#334155';
+  ctx.beginPath();
+  ctx.moveTo(10, 180);
+  ctx.lineTo(canvas.width - 10, 180);
+  ctx.stroke();
+}
+
+function renderTable(points) {
+  const rows=points.map(p=>`<tr class="border-b border-white/10"><td class="p-2">${p.t}</td><td class="p-2">${p.market}</td><td class="p-2">${p.narrative}</td><td class="p-2">${p.divergence.toFixed(2)}</td><td class="p-2">${p.alert?'⚠️ yes':'-'}</td></tr>`).join('');
+  $('tbl').innerHTML=`<table class="w-full text-sm border border-white/20"><thead><tr class="bg-white/10"><th class="p-2">Time</th><th class="p-2">Market</th><th class="p-2">Narrative</th><th class="p-2">Div.</th><th class="p-2">Alert</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="p-3 text-slate-400">No rows for current filter</td></tr>'}</tbody></table>`;
+}
+
+function render() {
+  const points = filteredPoints();
+  const alerts=points.filter(p=>p.alert).length;
+  $('summary').textContent=`Points: ${points.length} | Alerts: ${alerts}`;
+  renderChart(points);
+  renderTable(points);
+}
+
+$('load').onclick=async()=>{
+  const r=await fetch('/api/sample');
+  const d=await r.json();
+  allPoints = d.points || [];
+  render();
+};
+
+$('alertsOnly').onchange = render;
+$('window').onchange = render;
+
+$('export').onclick = () => {
+  const points = filteredPoints();
+  const alerts = points.filter(p => p.alert);
+  const md = `# Narrative Divergence Summary\n\n- Points analyzed: ${points.length}\n- Alerts: ${alerts.length}\n\n## Alert Events\n${alerts.map(a => `- ${a.t}: market ${a.market}, narrative ${a.narrative}, divergence ${a.divergence.toFixed(2)}`).join('\n') || '- None'}\n`;
+  const blob = new Blob([md], {type:'text/markdown;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='narrative-divergence-summary.md'; a.click();
+  URL.revokeObjectURL(url);
+};
+</script>
+</body>
+</html>
