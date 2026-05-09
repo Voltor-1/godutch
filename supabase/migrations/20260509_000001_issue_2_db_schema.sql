@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 
 CREATE TABLE IF NOT EXISTS public.bills (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  owner_user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
+  owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
   share_token TEXT NOT NULL UNIQUE,
   title TEXT,
   currency_code CHAR(3) NOT NULL DEFAULT 'USD',
@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS public.bills (
   tip_cents INTEGER NOT NULL DEFAULT 0 CHECK (tip_cents >= 0),
   service_charge_cents INTEGER NOT NULL DEFAULT 0 CHECK (service_charge_cents >= 0),
   total_cents INTEGER NOT NULL DEFAULT 0 CHECK (total_cents >= 0),
+  CONSTRAINT bills_total_cents_chk CHECK (
+    total_cents = subtotal_cents + tax_cents + tip_cents + service_charge_cents
+  ),
 
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'finalized', 'expired')),
   revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1),
@@ -104,7 +107,17 @@ CREATE TABLE IF NOT EXISTS public.audit_events (
   bill_id UUID NOT NULL REFERENCES public.bills(id) ON DELETE CASCADE,
   actor_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
   actor_participant_id UUID REFERENCES public.bill_participants(id) ON DELETE SET NULL,
-  event_type TEXT NOT NULL,
+  event_type TEXT NOT NULL CHECK (event_type IN (
+    'session_created',
+    'participant_added',
+    'participant_edited',
+    'item_added',
+    'item_edited',
+    'split_mode_changed',
+    'compute_run',
+    'finalized',
+    'expired'
+  )),
   event_payload JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
