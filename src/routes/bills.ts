@@ -677,13 +677,166 @@ bills.post('/:token/split-mode', async (c) => {
 });
 
 // POST /sessions/:token/finalize
-bills.post('/:token/finalize', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #8' } }, 501);
+<http://bills.post|bills.post>('/:token/finalize', async (c) => {
+  const token = c.req.param('token');
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    // Fetch bill
+    const { data: bill, error: billError } = await client
+      .from('bills')
+      .select('id, status, total_cents, owner_user_id, share_token')
+      .eq('share_token', tokenParsed.data)
+      .single();
+
+    if (billError || !bill) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (bill.status === 'expired') {
+      return err(c, 'GONE', 'Session has expired');
+    }
+    if (bill.status === 'finalized') {
+      return err(c, 'CONFLICT', 'Session is already finalized');
+    }
+
+    // Fetch active split rule
+    const { data: splitRule } = await client
+      .from('split_rules')
+      .select('split_mode, config_json')
+      .eq('bill_id', bill.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!splitRule) {
+      return err(c, 'VALIDATION_ERROR', 'No split mode set — run compute first');
+    }
+
+    // Percentage mode: enforce strict 100% before finalizing
+    if (splitRule.split_mode === 'percentage') {
+      const config = splitRule.config_json as any;
+      const percentages: Record<string, number> = config?.percentages ?? {};
+      const basisSum = Object.values(percentages).reduce(
+        (acc: number, v: any) => acc + Math.trunc(v), 0
+      );
+      if (basisSum !== 10000) {
+        return err(c, 'VALIDATION_ERROR', 'Percentages do not sum to 100% — cannot finalize');
+      }
+    }
+
+    // Verify participant_totals exist (compute must have been run)
+    const { data: totals, error: totalsError } = await client
+      .from('participant_totals')
+      .select('participant_id, total_owed_cents')
+      .eq('bill_id', bill.id);
+
+    if (totalsError || !totals || totals.length === 0) {
+      return err(c, 'VALIDATION_ERROR', 'Compute has not been run — run compute before finalizing');
+    }
+
+    // Verify totals sum to bill total
+    const totalsSum = totals.reduce((acc, t) => acc + Math.trunc(t.total_owed_cents), 0);
+    if (totalsSum !== Math.trunc(bill.total_cents)) {
+      return err(c, 'VALIDATION_ERROR', 'Participant totals do not match bill total — re-run compute');
+    }
+
+    // Mark bill as finalized and set read_until
+    const readUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { error: updateError } = await client
+      .from('bills')
+      .update({
+        status: 'finalized',
+        read_until: readUntil,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', bill.id)
+      .eq('status', 'draft');
+
+    if (updateError) {
+      return err(c, 'INTERNAL_ERROR', 'Failed to finalize session');
+    }
+
+    // Write audit event
+    await client.from('audit_events').insert({
+      bill_id: bill.id,
+      event_type: 'finalized',
+      event_payload: {
+        total_cents: bill.total_cents,
+        participant_count: totals.length,
+        split_mode: splitRule.split_mode,
+      },
+    });
+
+    return ok(c, {
+      billId: bill.id,
+      status: 'finalized',
+      readUntil,
+      participantTotals: totals.map((t) => ({
+        participantId: t.participant_id,
+        totalOwedCents: Math.trunc(t.total_owed_cents),
+      })),
+    });
+
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    return err(c, 'INTERNAL_ERROR', 'Finalization failed');
+  }
 });
 
 // GET /sessions/:token/audit
 bills.get('/:token/audit', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #8' } }, 501);
+  const token = c.req.param('token');
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    // Verify session exists and is accessible
+    const { data: bill, error: billError } = await client
+      .from('bills')
+      .select('id, status')
+      .eq('share_token', tokenParsed.data)
+      .single();
+
+    if (billError || !bill) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+
+    // Fetch audit events ordered by creation time
+    const { data: events, error: eventsError } = await client
+      .from('audit_events')
+      .select('id, event_type, event_payload, created_at, actor_participant_id')
+      .eq('bill_id', bill.id)
+      .order('created_at', { ascending: true });
+
+    if (eventsError) {
+      return err(c, 'INTERNAL_ERROR', 'Failed to fetch audit log');
+    }
+
+    return ok(c, {
+      billId: bill.id,
+      events: (events ?? []).map((e) => ({
+        id: e.id,
+        eventType: e.event_type,
+        payload: e.event_payload,
+        actorParticipantId: e.actor_participant_id,
+        createdAt: e.created_at,
+      })),
+    });
+
+  } catch (e) {
+    return err(c, 'INTERNAL_ERROR', 'Failed to fetch audit log');
+  }
 });
 
 export default bills;
