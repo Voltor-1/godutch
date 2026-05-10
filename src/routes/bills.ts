@@ -4,7 +4,11 @@ import { z } from 'zod';
 import { err, ok } from '../lib/response';
 import { parseBody, centsSchema, tokenSchema } from '../lib/validation';
 import { getAnonClient, type Env } from '../lib/supabase';
-import { addGuestParticipant, getGuestSessionFull } from '../lib/guest-session';
+import {
+  addGuestParticipant,
+  getGuestSessionFull,
+  upsertItemAllocation,
+} from '../lib/guest-session';
 import type { BillDTO } from '../types/api';
 
 const bills = new Hono<{ Bindings: Env }>();
@@ -31,6 +35,12 @@ const createItemSchema = z.object({
   name: z.string().min(1).max(200),
   quantity: z.number().int().min(1),
   unitPriceCents: centsSchema,
+});
+
+const upsertAllocationSchema = z.object({
+  participantToken: z.string().min(16).max(128),
+  itemId: z.string().uuid(),
+  allocatedCents: centsSchema,
 });
 
 function generateTokenHex(bytes = 32): string {
@@ -349,7 +359,66 @@ bills.post('/:token/items', async (c) => {
 
 // POST /sessions/:token/allocations
 bills.post('/:token/allocations', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #6' } }, 501);
+  const token = c.req.param('token');
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = parseBody(upsertAllocationSchema, raw);
+  if ('error' in parsed) {
+    return err(c, 'VALIDATION_ERROR', parsed.error);
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    const allocation = await upsertItemAllocation(
+      client,
+      tokenParsed.data,
+      parsed.data.participantToken,
+      parsed.data.itemId,
+      parsed.data.allocatedCents,
+    );
+
+    const [{ data: sumData, error: sumError }, { data: itemData, error: itemError }] =
+      await Promise.all([
+        client
+          .from('item_allocations')
+          .select('allocated_cents')
+          .eq('item_id', parsed.data.itemId),
+        client
+          .from('bill_items')
+          .select('line_total_cents')
+          .eq('id', parsed.data.itemId)
+          .single(),
+      ]);
+
+    if (sumError || itemError || !itemData) {
+      return err(c, 'INTERNAL_ERROR', 'Failed to validate allocation totals');
+    }
+
+    const allocatedTotal = (sumData ?? []).reduce(
+      (acc, row) => acc + Math.trunc(row.allocated_cents ?? 0),
+      0,
+    );
+
+    if (allocatedTotal > Math.trunc(itemData.line_total_cents)) {
+      return err(c, 'VALIDATION_ERROR', 'Allocation exceeds item total');
+    }
+
+    return ok(c, allocation, 200);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (message.includes('PARTICIPANT_NOT_FOUND_FOR_TOKEN')) {
+      return err(c, 'FORBIDDEN', 'Participant token is not authorized for this session');
+    }
+    return err(c, 'INTERNAL_ERROR', 'Failed to upsert allocation');
+  }
 });
 
 // POST /sessions/:token/split-mode
