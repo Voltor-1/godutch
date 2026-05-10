@@ -2,13 +2,3 @@ name = "godutch"
 main = "src/worker.ts"
 compatibility_date = "2024-05-29"
 compatibility_flags = ["nodejs_compat"]
-
-[vars]
-SUPABASE_URL = ""
-SUPABASE_ANON_KEY = ""
-
-[[secrets]]
-name = "SUPABASE_URL"
-
-[[secrets]]
-name = "SUPABASE_ANON_KEY"

@@ -531,7 +531,7 @@ bills.post('/:token/split-mode', async (c) => {
 });
 
 // POST /sessions/:token/compute
-<http://bills.post|bills.post>('/:token/compute', async (c) => {
+bills.post('/:token/compute', async (c) => {
   const token = c.req.param('token');
   const tokenParsed = tokenSchema.safeParse(token);
   if (!tokenParsed.success) {
@@ -677,7 +677,7 @@ bills.post('/:token/split-mode', async (c) => {
 });
 
 // POST /sessions/:token/finalize
-<http://bills.post|bills.post>('/:token/finalize', async (c) => {
+bills.post('/:token/finalize', async (c) => {
   const token = c.req.param('token');
   const tokenParsed = tokenSchema.safeParse(token);
   if (!tokenParsed.success) {
