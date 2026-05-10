@@ -9,14 +9,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.43.0",
     "hono": "^4.4.0",
-    "@supabase/supabase-js": "^2.43.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240529.0",
     "typescript": "^5.4.0",
-    "wrangler": "^3.57.0",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "wrangler": "^3.57.0"
   }
 }

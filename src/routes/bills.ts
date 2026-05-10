@@ -83,21 +83,16 @@ bills.post('/', async (c) => {
   try {
     const shareToken = generateTokenHex(32);
     const { data, error } = await client
-      .from('bills')
-      .insert({
-        title: body.title ?? null,
-        currency_code: body.currencyCode.toUpperCase(),
-        subtotal_cents: body.subtotalCents,
-        tax_cents: body.taxCents,
-        tip_cents: body.tipCents,
-        service_charge_cents: body.serviceChargeCents,
-        total_cents: totalCents,
-        share_token: shareToken,
-        status: 'draft',
-        owner_user_id: null,
-      })
-      .select('*')
-      .single();
+      .rpc('create_session', {
+        p_title: body.title ?? null,
+        p_currency_code: body.currencyCode.toUpperCase(),
+        p_share_token: shareToken,
+        p_subtotal_cents: body.subtotalCents,
+        p_tax_cents: body.taxCents,
+        p_tip_cents: body.tipCents,
+        p_service_charge_cents: body.serviceChargeCents,
+        p_total_cents: totalCents,
+      });
 
     if (error) {
       if (isConflictError(error.message)) {
@@ -305,49 +300,21 @@ bills.post('/:token/items', async (c) => {
   const client = getAnonClient(c.env);
 
   try {
-    const { data: bill, error: billError } = await client
-      .from('bills')
-      .select('id, status')
-      .eq('share_token', tokenParsed.data)
-      .single();
+    const { data: item, error } = await client.rpc('add_bill_item', {
+      p_share_token: tokenParsed.data,
+      p_name: parsed.data.name,
+      p_quantity: parsed.data.quantity,
+      p_unit_price_cents: parsed.data.unitPriceCents,
+    });
 
-    if (billError || !bill || bill.status === 'expired') {
-      return err(c, 'GONE', 'Session not found or expired');
-    }
-
-    const lineTotalCents = parsed.data.quantity * parsed.data.unitPriceCents;
-
-    const { data: item, error: itemError } = await client
-      .from('bill_items')
-      .insert({
-        bill_id: bill.id,
-        name: parsed.data.name,
-        quantity: parsed.data.quantity,
-        unit_price_cents: parsed.data.unitPriceCents,
-        line_total_cents: lineTotalCents,
-      })
-      .select('*')
-      .single();
-
-    if (itemError || !item) {
-      if (itemError && isConflictError(itemError.message)) {
-        return err(c, 'CONFLICT', 'Item creation conflict');
+    if (error) {
+      if (error.message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+        return err(c, 'GONE', 'Session not found or expired');
       }
       return err(c, 'INTERNAL_ERROR', 'Failed to create item');
     }
 
-    await client.from('audit_events').insert({
-      bill_id: bill.id,
-      event_type: 'item_added',
-      event_payload: {
-        item_id: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        unit_price_cents: item.unit_price_cents,
-      },
-    });
-
-    const response = {
+    return ok(c, {
       id: item.id,
       billId: item.bill_id,
       name: item.name,
@@ -355,16 +322,11 @@ bills.post('/:token/items', async (c) => {
       unitPriceCents: item.unit_price_cents,
       lineTotalCents: item.line_total_cents,
       createdAt: item.created_at,
-    };
-
-    return ok(c, response, 201);
+    }, 201);
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
       return err(c, 'GONE', 'Session not found or expired');
-    }
-    if (isConflictError(message)) {
-      return err(c, 'CONFLICT', 'Item creation conflict');
     }
     return err(c, 'INTERNAL_ERROR', 'Failed to create item');
   }
@@ -451,70 +413,26 @@ bills.post('/:token/split-mode', async (c) => {
   const client = getAnonClient(c.env);
 
   try {
-    const { data: bill, error: billError } = await client
-      .from('bills')
-      .select('id, status')
-      .eq('share_token', tokenParsed.data)
-      .single();
-
-    if (billError || !bill || bill.status === 'expired') {
-      return err(c, 'GONE', 'Session not found or expired');
-    }
-
-    const { data: previousActive } = await client
-      .from('split_rules')
-      .select('split_mode')
-      .eq('bill_id', bill.id)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    const { error: deactivateError } = await client
-      .from('split_rules')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('bill_id', bill.id)
-      .eq('is_active', true);
-
-    if (deactivateError) {
-      if (isConflictError(deactivateError.message)) {
-        return err(c, 'CONFLICT', 'Split mode update conflict');
-      }
-      return err(c, 'INTERNAL_ERROR', 'Failed to update split mode');
-    }
-
-    const { data: inserted, error: insertError } = await client
-      .from('split_rules')
-      .insert({
-        bill_id: bill.id,
-        split_mode: parsed.data.mode,
-        is_active: true,
-        config_json: parsed.data.configJson ?? null,
-      })
-      .select('*')
-      .single();
-
-    if (insertError || !inserted) {
-      if (insertError && isConflictError(insertError.message)) {
-        return err(c, 'CONFLICT', 'Split mode update conflict');
-      }
-      return err(c, 'INTERNAL_ERROR', 'Failed to update split mode');
-    }
-
-    await client.from('audit_events').insert({
-      bill_id: bill.id,
-      event_type: 'split_mode_changed',
-      event_payload: {
-        mode: parsed.data.mode,
-        previous_mode: previousActive?.split_mode ?? null,
-      },
+    const { data: rule, error } = await client.rpc('set_split_mode', {
+      p_share_token: tokenParsed.data,
+      p_mode: parsed.data.mode,
+      p_config_json: parsed.data.configJson ?? null,
     });
 
+    if (error) {
+      if (error.message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+        return err(c, 'GONE', 'Session not found or expired');
+      }
+      return err(c, 'INTERNAL_ERROR', 'Failed to update split mode');
+    }
+
     const response = {
-      id: inserted.id,
-      billId: inserted.bill_id,
-      splitMode: inserted.split_mode,
-      isActive: inserted.is_active,
-      configJson: inserted.config_json,
-      createdAt: inserted.created_at,
+      id: rule.id,
+      billId: rule.bill_id,
+      splitMode: rule.split_mode,
+      isActive: rule.is_active,
+      configJson: rule.config_json,
+      createdAt: rule.created_at,
     };
 
     return ok(c, response);
@@ -541,9 +459,18 @@ bills.post('/:token/compute', async (c) => {
   const client = getAnonClient(c.env);
 
   try {
-    // Fetch full session snapshot
-    const snapshot = await getGuestSessionFull(client, tokenParsed.data);
-    const { bill, participants, items } = snapshot as any;
+    // Fetch full session data via SECURITY DEFINER function
+    const { data: sessionData, error: sessionError } = await client
+      .rpc('get_session_for_compute', { p_share_token: tokenParsed.data });
+
+    if (sessionError) {
+      if (sessionError.message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+        return err(c, 'GONE', 'Session not found or expired');
+      }
+      return err(c, 'INTERNAL_ERROR', 'Failed to fetch session');
+    }
+
+    const { bill, participants, items, allocations, split_rule: splitRule } = sessionData as any;
 
     if (!bill || bill.status === 'expired') {
       return err(c, 'GONE', 'Session not found or expired');
@@ -551,16 +478,7 @@ bills.post('/:token/compute', async (c) => {
     if (!participants || participants.length === 0) {
       return err(c, 'VALIDATION_ERROR', 'Session has no participants');
     }
-
-    // Fetch active split rule
-    const { data: splitRule, error: splitError } = await client
-      .from('split_rules')
-      .select('*')
-      .eq('bill_id', bill.id)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (splitError || !splitRule) {
+    if (!splitRule) {
       return err(c, 'VALIDATION_ERROR', 'No split mode set');
     }
 
@@ -580,17 +498,7 @@ bills.post('/:token/compute', async (c) => {
     let computeResult;
 
     if (splitRule.split_mode === 'items') {
-      // Fetch allocations
-      const { data: allocations, error: allocError } = await client
-        .from('item_allocations')
-        .select('participant_id, allocated_cents, item_id')
-        .eq('bill_id', bill.id);
-
-      if (allocError) {
-        return err(c, 'INTERNAL_ERROR', 'Failed to fetch allocations');
-      }
-
-      // Validate all items are fully allocated
+      // Validate all items are fully allocated using data from get_session_for_compute
       for (const item of items as any[]) {
         const itemAllocs = (allocations ?? []).filter((a: any) => a.item_id === item.id);
         const allocSum = itemAllocs.reduce((acc: number, a: any) => acc + Math.trunc(a.allocated_cents), 0);
@@ -634,33 +542,15 @@ bills.post('/:token/compute', async (c) => {
       return err(c, 'VALIDATION_ERROR', 'Unknown split mode');
     }
 
-    // Upsert participant_totals
-    for (const row of computeResult) {
-      await client.from('participant_totals').upsert({
-        bill_id: bill.id,
-        participant_id: row.participantId,
-        subtotal_cents: row.subtotalCents,
-        tax_cents: row.taxCents,
-        tip_cents: row.tipCents,
-        service_charge_cents: row.serviceChargeCents,
-        total_owed_cents: row.totalOwedCents,
-        remainder_cents: row.remainderCents,
-        remainder_policy: row.remainderPolicy,
-        remainder_trace: row.remainderTrace,
-        computed_at: new Date().toISOString(),
-      }, { onConflict: 'bill_id,participant_id' });
-    }
-
-    // Write audit event
-    await client.from('audit_events').insert({
-      bill_id: bill.id,
-      event_type: 'compute_run',
-      event_payload: {
-        split_mode: splitRule.split_mode,
-        participant_count: participants.length,
-        total_cents: bill.total_cents,
-      },
+    // Save compute results via SECURITY DEFINER function
+    const { error: saveError } = await client.rpc('save_compute_results', {
+      p_share_token: tokenParsed.data,
+      p_results: computeResult,
     });
+
+    if (saveError) {
+      return err(c, 'INTERNAL_ERROR', 'Failed to save compute results');
+    }
 
     return ok(c, computeResult);
 
@@ -687,98 +577,30 @@ bills.post('/:token/finalize', async (c) => {
   const client = getAnonClient(c.env);
 
   try {
-    // Fetch bill
-    const { data: bill, error: billError } = await client
-      .from('bills')
-      .select('id, status, total_cents, owner_user_id, share_token')
-      .eq('share_token', tokenParsed.data)
-      .single();
+    const { data: bill, error } = await client.rpc('finalize_session', {
+      p_share_token: tokenParsed.data,
+    });
 
-    if (billError || !bill) {
-      return err(c, 'GONE', 'Session not found or expired');
-    }
-    if (bill.status === 'expired') {
-      return err(c, 'GONE', 'Session has expired');
-    }
-    if (bill.status === 'finalized') {
-      return err(c, 'CONFLICT', 'Session is already finalized');
-    }
-
-    // Fetch active split rule
-    const { data: splitRule } = await client
-      .from('split_rules')
-      .select('split_mode, config_json')
-      .eq('bill_id', bill.id)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (!splitRule) {
-      return err(c, 'VALIDATION_ERROR', 'No split mode set — run compute first');
-    }
-
-    // Percentage mode: enforce strict 100% before finalizing
-    if (splitRule.split_mode === 'percentage') {
-      const config = splitRule.config_json as any;
-      const percentages: Record<string, number> = config?.percentages ?? {};
-      const basisSum = Object.values(percentages).reduce(
-        (acc: number, v: any) => acc + Math.trunc(v), 0
-      );
-      if (basisSum !== 10000) {
-        return err(c, 'VALIDATION_ERROR', 'Percentages do not sum to 100% — cannot finalize');
+    if (error) {
+      if (error.message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+        return err(c, 'GONE', 'Session not found or expired');
       }
-    }
-
-    // Verify participant_totals exist (compute must have been run)
-    const { data: totals, error: totalsError } = await client
-      .from('participant_totals')
-      .select('participant_id, total_owed_cents')
-      .eq('bill_id', bill.id);
-
-    if (totalsError || !totals || totals.length === 0) {
-      return err(c, 'VALIDATION_ERROR', 'Compute has not been run — run compute before finalizing');
-    }
-
-    // Verify totals sum to bill total
-    const totalsSum = totals.reduce((acc, t) => acc + Math.trunc(t.total_owed_cents), 0);
-    if (totalsSum !== Math.trunc(bill.total_cents)) {
-      return err(c, 'VALIDATION_ERROR', 'Participant totals do not match bill total — re-run compute');
-    }
-
-    // Mark bill as finalized and set read_until
-    const readUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { error: updateError } = await client
-      .from('bills')
-      .update({
-        status: 'finalized',
-        read_until: readUntil,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', bill.id)
-      .eq('status', 'draft');
-
-    if (updateError) {
+      if (error.message.includes('ALREADY_FINALIZED')) {
+        return err(c, 'CONFLICT', 'Session is already finalized');
+      }
+      if (error.message.includes('COMPUTE_NOT_RUN')) {
+        return err(c, 'VALIDATION_ERROR', 'Run compute before finalizing');
+      }
+      if (error.message.includes('TOTALS_MISMATCH')) {
+        return err(c, 'VALIDATION_ERROR', 'Participant totals do not match bill total — re-run compute');
+      }
       return err(c, 'INTERNAL_ERROR', 'Failed to finalize session');
     }
-
-    // Write audit event
-    await client.from('audit_events').insert({
-      bill_id: bill.id,
-      event_type: 'finalized',
-      event_payload: {
-        total_cents: bill.total_cents,
-        participant_count: totals.length,
-        split_mode: splitRule.split_mode,
-      },
-    });
 
     return ok(c, {
       billId: bill.id,
       status: 'finalized',
-      readUntil,
-      participantTotals: totals.map((t) => ({
-        participantId: t.participant_id,
-        totalOwedCents: Math.trunc(t.total_owed_cents),
-      })),
+      readUntil: bill.read_until,
     });
 
   } catch (e) {
