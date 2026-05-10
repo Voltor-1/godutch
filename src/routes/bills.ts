@@ -4,7 +4,11 @@ import { z } from 'zod';
 import { err, ok } from '../lib/response';
 import { parseBody, centsSchema, tokenSchema } from '../lib/validation';
 import { getAnonClient, type Env } from '../lib/supabase';
-import { addGuestParticipant, getGuestSessionFull } from '../lib/guest-session';
+import {
+  addGuestParticipant,
+  getGuestSessionFull,
+  upsertItemAllocation,
+} from '../lib/guest-session';
 import type { BillDTO } from '../types/api';
 
 const bills = new Hono<{ Bindings: Env }>();
@@ -25,6 +29,23 @@ const addParticipantSchema = z.object({
 const updateParticipantSchema = z.object({
   displayName: z.string().min(1).max(100),
   expectedRevision: z.number().int().nonnegative(),
+});
+
+const createItemSchema = z.object({
+  name: z.string().min(1).max(200),
+  quantity: z.number().int().min(1),
+  unitPriceCents: centsSchema,
+});
+
+const upsertAllocationSchema = z.object({
+  participantToken: z.string().min(16).max(128),
+  itemId: z.string().uuid(),
+  allocatedCents: centsSchema,
+});
+
+const splitModeSchema = z.object({
+  mode: z.enum(['items', 'percentage', 'fixed']),
+  configJson: z.record(z.unknown()).optional(),
 });
 
 function generateTokenHex(bytes = 32): string {
@@ -261,17 +282,244 @@ bills.patch('/:token/participants/:id', async (c) => {
 
 // POST /sessions/:token/items
 bills.post('/:token/items', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #6' } }, 501);
+  const token = c.req.param('token');
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = parseBody(createItemSchema, raw);
+  if ('error' in parsed) {
+    return err(c, 'VALIDATION_ERROR', parsed.error);
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    const { data: bill, error: billError } = await client
+      .from('bills')
+      .select('id, status')
+      .eq('share_token', tokenParsed.data)
+      .single();
+
+    if (billError || !bill || bill.status === 'expired') {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+
+    const lineTotalCents = parsed.data.quantity * parsed.data.unitPriceCents;
+
+    const { data: item, error: itemError } = await client
+      .from('bill_items')
+      .insert({
+        bill_id: bill.id,
+        name: parsed.data.name,
+        quantity: parsed.data.quantity,
+        unit_price_cents: parsed.data.unitPriceCents,
+        line_total_cents: lineTotalCents,
+      })
+      .select('*')
+      .single();
+
+    if (itemError || !item) {
+      if (itemError && isConflictError(itemError.message)) {
+        return err(c, 'CONFLICT', 'Item creation conflict');
+      }
+      return err(c, 'INTERNAL_ERROR', 'Failed to create item');
+    }
+
+    await client.from('audit_events').insert({
+      bill_id: bill.id,
+      event_type: 'item_added',
+      event_payload: {
+        item_id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit_price_cents: item.unit_price_cents,
+      },
+    });
+
+    const response = {
+      id: item.id,
+      billId: item.bill_id,
+      name: item.name,
+      quantity: item.quantity,
+      unitPriceCents: item.unit_price_cents,
+      lineTotalCents: item.line_total_cents,
+      createdAt: item.created_at,
+    };
+
+    return ok(c, response, 201);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (isConflictError(message)) {
+      return err(c, 'CONFLICT', 'Item creation conflict');
+    }
+    return err(c, 'INTERNAL_ERROR', 'Failed to create item');
+  }
 });
 
 // POST /sessions/:token/allocations
 bills.post('/:token/allocations', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #6' } }, 501);
+  const token = c.req.param('token');
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = parseBody(upsertAllocationSchema, raw);
+  if ('error' in parsed) {
+    return err(c, 'VALIDATION_ERROR', parsed.error);
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    const allocation = await upsertItemAllocation(
+      client,
+      tokenParsed.data,
+      parsed.data.participantToken,
+      parsed.data.itemId,
+      parsed.data.allocatedCents,
+    );
+
+    const [{ data: sumData, error: sumError }, { data: itemData, error: itemError }] =
+      await Promise.all([
+        client
+          .from('item_allocations')
+          .select('allocated_cents')
+          .eq('item_id', parsed.data.itemId),
+        client
+          .from('bill_items')
+          .select('line_total_cents')
+          .eq('id', parsed.data.itemId)
+          .single(),
+      ]);
+
+    if (sumError || itemError || !itemData) {
+      return err(c, 'INTERNAL_ERROR', 'Failed to validate allocation totals');
+    }
+
+    const allocatedTotal = (sumData ?? []).reduce(
+      (acc, row) => acc + Math.trunc(row.allocated_cents ?? 0),
+      0,
+    );
+
+    if (allocatedTotal > Math.trunc(itemData.line_total_cents)) {
+      return err(c, 'VALIDATION_ERROR', 'Allocation exceeds item total');
+    }
+
+    return ok(c, allocation, 200);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (message.includes('PARTICIPANT_NOT_FOUND_FOR_TOKEN')) {
+      return err(c, 'FORBIDDEN', 'Participant token is not authorized for this session');
+    }
+    return err(c, 'INTERNAL_ERROR', 'Failed to upsert allocation');
+  }
 });
 
 // POST /sessions/:token/split-mode
 bills.post('/:token/split-mode', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #6' } }, 501);
+  const token = c.req.param('token');
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = parseBody(splitModeSchema, raw);
+  if ('error' in parsed) {
+    return err(c, 'VALIDATION_ERROR', parsed.error);
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    const { data: bill, error: billError } = await client
+      .from('bills')
+      .select('id, status')
+      .eq('share_token', tokenParsed.data)
+      .single();
+
+    if (billError || !bill || bill.status === 'expired') {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+
+    const { data: previousActive } = await client
+      .from('split_rules')
+      .select('split_mode')
+      .eq('bill_id', bill.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    const { error: deactivateError } = await client
+      .from('split_rules')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('bill_id', bill.id)
+      .eq('is_active', true);
+
+    if (deactivateError) {
+      if (isConflictError(deactivateError.message)) {
+        return err(c, 'CONFLICT', 'Split mode update conflict');
+      }
+      return err(c, 'INTERNAL_ERROR', 'Failed to update split mode');
+    }
+
+    const { data: inserted, error: insertError } = await client
+      .from('split_rules')
+      .insert({
+        bill_id: bill.id,
+        split_mode: parsed.data.mode,
+        is_active: true,
+        config_json: parsed.data.configJson ?? null,
+      })
+      .select('*')
+      .single();
+
+    if (insertError || !inserted) {
+      if (insertError && isConflictError(insertError.message)) {
+        return err(c, 'CONFLICT', 'Split mode update conflict');
+      }
+      return err(c, 'INTERNAL_ERROR', 'Failed to update split mode');
+    }
+
+    await client.from('audit_events').insert({
+      bill_id: bill.id,
+      event_type: 'split_mode_changed',
+      event_payload: {
+        mode: parsed.data.mode,
+        previous_mode: previousActive?.split_mode ?? null,
+      },
+    });
+
+    const response = {
+      id: inserted.id,
+      billId: inserted.bill_id,
+      splitMode: inserted.split_mode,
+      isActive: inserted.is_active,
+      configJson: inserted.config_json,
+      createdAt: inserted.created_at,
+    };
+
+    return ok(c, response);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (isConflictError(message)) {
+      return err(c, 'CONFLICT', 'Split mode update conflict');
+    }
+    return err(c, 'INTERNAL_ERROR', 'Failed to update split mode');
+  }
 });
 
 // POST /sessions/:token/compute
