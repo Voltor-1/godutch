@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { BillItemDTO, BillDTO, ParticipantDTO } from '../types/api';
+import type { BillItemDTO, BillDTO, ItemAllocationDTO, ParticipantDTO } from '../types/api';
 
 export interface GuestSessionFullResult {
   bill: BillDTO;
@@ -72,4 +72,38 @@ export async function addGuestParticipant(
     participantToken: data.participant_token,
     createdAt: data.created_at,
   } as ParticipantDTO;
+}
+
+export async function upsertItemAllocation(
+  client: SupabaseClient,
+  shareToken: string,
+  participantToken: string,
+  itemId: string,
+  allocatedCents: number,
+): Promise<ItemAllocationDTO> {
+  const { data, error } = await client.rpc('upsert_item_allocation', {
+    p_share_token: shareToken,
+    p_participant_token: participantToken,
+    p_item_id: itemId,
+    p_allocated_cents: allocatedCents,
+  });
+
+  if (error) {
+    if (error.message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      throw new Error('SESSION_NOT_FOUND_OR_EXPIRED');
+    }
+    if (error.message.includes('PARTICIPANT_NOT_FOUND_FOR_TOKEN')) {
+      throw new Error('PARTICIPANT_NOT_FOUND_FOR_TOKEN');
+    }
+    throw new Error(`upsert_item_allocation failed: ${error.message}`);
+  }
+
+  return {
+    id: data.id,
+    billId: data.bill_id,
+    itemId: data.item_id,
+    participantId: data.participant_id,
+    allocatedCents: data.allocated_cents,
+    createdAt: data.created_at,
+  } as ItemAllocationDTO;
 }
