@@ -43,6 +43,11 @@ const upsertAllocationSchema = z.object({
   allocatedCents: centsSchema,
 });
 
+const splitModeSchema = z.object({
+  mode: z.enum(['items', 'percentage', 'fixed']),
+  configJson: z.record(z.unknown()).optional(),
+});
+
 function generateTokenHex(bytes = 32): string {
   const random = new Uint8Array(bytes);
   crypto.getRandomValues(random);
@@ -423,7 +428,98 @@ bills.post('/:token/allocations', async (c) => {
 
 // POST /sessions/:token/split-mode
 bills.post('/:token/split-mode', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #6' } }, 501);
+  const token = c.req.param('token');
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = parseBody(splitModeSchema, raw);
+  if ('error' in parsed) {
+    return err(c, 'VALIDATION_ERROR', parsed.error);
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    const { data: bill, error: billError } = await client
+      .from('bills')
+      .select('id, status')
+      .eq('share_token', tokenParsed.data)
+      .single();
+
+    if (billError || !bill || bill.status === 'expired') {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+
+    const { data: previousActive } = await client
+      .from('split_rules')
+      .select('split_mode')
+      .eq('bill_id', bill.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    const { error: deactivateError } = await client
+      .from('split_rules')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('bill_id', bill.id)
+      .eq('is_active', true);
+
+    if (deactivateError) {
+      if (isConflictError(deactivateError.message)) {
+        return err(c, 'CONFLICT', 'Split mode update conflict');
+      }
+      return err(c, 'INTERNAL_ERROR', 'Failed to update split mode');
+    }
+
+    const { data: inserted, error: insertError } = await client
+      .from('split_rules')
+      .insert({
+        bill_id: bill.id,
+        split_mode: parsed.data.mode,
+        is_active: true,
+        config_json: parsed.data.configJson ?? null,
+      })
+      .select('*')
+      .single();
+
+    if (insertError || !inserted) {
+      if (insertError && isConflictError(insertError.message)) {
+        return err(c, 'CONFLICT', 'Split mode update conflict');
+      }
+      return err(c, 'INTERNAL_ERROR', 'Failed to update split mode');
+    }
+
+    await client.from('audit_events').insert({
+      bill_id: bill.id,
+      event_type: 'split_mode_changed',
+      event_payload: {
+        mode: parsed.data.mode,
+        previous_mode: previousActive?.split_mode ?? null,
+      },
+    });
+
+    const response = {
+      id: inserted.id,
+      billId: inserted.bill_id,
+      splitMode: inserted.split_mode,
+      isActive: inserted.is_active,
+      configJson: inserted.config_json,
+      createdAt: inserted.created_at,
+    };
+
+    return ok(c, response);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (isConflictError(message)) {
+      return err(c, 'CONFLICT', 'Split mode update conflict');
+    }
+    return err(c, 'INTERNAL_ERROR', 'Failed to update split mode');
+  }
 });
 
 // POST /sessions/:token/compute
