@@ -64,5 +64,12 @@ export async function addGuestParticipant(
     throw new Error(`add_participant failed: ${error.message}`);
   }
 
-  return data as ParticipantDTO;
+  return {
+    id: data.id,
+    billId: data.bill_id,
+    displayName: data.display_name,
+    participantOrder: data.participant_order,
+    participantToken: data.participant_token,
+    createdAt: data.created_at,
+  } as ParticipantDTO;
 }

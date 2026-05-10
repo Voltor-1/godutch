@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { err, ok } from '../lib/response';
 import { parseBody, centsSchema, tokenSchema } from '../lib/validation';
 import { getAnonClient, type Env } from '../lib/supabase';
-import { getGuestSessionFull } from '../lib/guest-session';
+import { addGuestParticipant, getGuestSessionFull } from '../lib/guest-session';
 import type { BillDTO } from '../types/api';
 
 const bills = new Hono<{ Bindings: Env }>();
@@ -16,6 +16,15 @@ const createSessionSchema = z.object({
   taxCents: centsSchema,
   tipCents: centsSchema,
   serviceChargeCents: centsSchema,
+});
+
+const addParticipantSchema = z.object({
+  displayName: z.string().min(1).max(100),
+});
+
+const updateParticipantSchema = z.object({
+  displayName: z.string().min(1).max(100),
+  expectedRevision: z.number().int().nonnegative(),
 });
 
 function generateTokenHex(bytes = 32): string {
@@ -125,12 +134,129 @@ bills.get('/:token', async (c) => {
 
 // POST /sessions/:token/participants
 bills.post('/:token/participants', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #5' } }, 501);
+  const token = c.req.param('token');
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = parseBody(addParticipantSchema, raw);
+  if ('error' in parsed) {
+    return err(c, 'VALIDATION_ERROR', parsed.error);
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    const participant = await addGuestParticipant(
+      client,
+      tokenParsed.data,
+      parsed.data.displayName,
+    );
+
+    const response = {
+      id: participant.id,
+      billId: participant.billId,
+      displayName: participant.displayName,
+      participantOrder: participant.participantOrder,
+      participantToken: participant.participantToken,
+      createdAt: participant.createdAt,
+    };
+
+    return ok(c, response, 201);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (isConflictError(message)) {
+      return err(c, 'CONFLICT', 'Participant creation conflict');
+    }
+    return err(c, 'INTERNAL_ERROR', 'Failed to add participant');
+  }
 });
 
 // PATCH /sessions/:token/participants/:id
 bills.patch('/:token/participants/:id', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #5' } }, 501);
+  const token = c.req.param('token');
+  const participantId = c.req.param('id');
+
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = parseBody(updateParticipantSchema, raw);
+  if ('error' in parsed) {
+    return err(c, 'VALIDATION_ERROR', parsed.error);
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    const { data: bill, error: billError } = await client
+      .from('bills')
+      .select('id, revision, status')
+      .eq('share_token', tokenParsed.data)
+      .single();
+
+    if (billError || !bill) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+
+    if (bill.status === 'expired') {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+
+    if (bill.revision !== parsed.data.expectedRevision) {
+      return err(c, 'CONFLICT', 'Revision conflict');
+    }
+
+    const { data: updated, error: updateError } = await client
+      .from('bill_participants')
+      .update({ display_name: parsed.data.displayName })
+      .eq('id', participantId)
+      .eq('bill_id', bill.id)
+      .select('*')
+      .single();
+
+    if (updateError || !updated) {
+      return err(c, 'NOT_FOUND', 'Participant not found');
+    }
+
+    const { data: revisionUpdated, error: revisionError } = await client
+      .from('bills')
+      .update({ revision: parsed.data.expectedRevision + 1 })
+      .eq('id', bill.id)
+      .eq('revision', parsed.data.expectedRevision)
+      .select('id')
+      .single();
+
+    if (revisionError || !revisionUpdated) {
+      return err(c, 'CONFLICT', 'Revision conflict');
+    }
+
+    const response = {
+      id: updated.id,
+      billId: updated.bill_id,
+      displayName: updated.display_name,
+      participantOrder: updated.participant_order,
+      createdAt: updated.created_at,
+    };
+
+    return ok(c, response);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (isConflictError(message)) {
+      return err(c, 'CONFLICT', 'Revision conflict');
+    }
+    return err(c, 'INTERNAL_ERROR', 'Failed to update participant');
+  }
 });
 
 // POST /sessions/:token/items
