@@ -27,6 +27,12 @@ const updateParticipantSchema = z.object({
   expectedRevision: z.number().int().nonnegative(),
 });
 
+const createItemSchema = z.object({
+  name: z.string().min(1).max(200),
+  quantity: z.number().int().min(1),
+  unitPriceCents: centsSchema,
+});
+
 function generateTokenHex(bytes = 32): string {
   const random = new Uint8Array(bytes);
   crypto.getRandomValues(random);
@@ -261,7 +267,84 @@ bills.patch('/:token/participants/:id', async (c) => {
 
 // POST /sessions/:token/items
 bills.post('/:token/items', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #6' } }, 501);
+  const token = c.req.param('token');
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = parseBody(createItemSchema, raw);
+  if ('error' in parsed) {
+    return err(c, 'VALIDATION_ERROR', parsed.error);
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    const { data: bill, error: billError } = await client
+      .from('bills')
+      .select('id, status')
+      .eq('share_token', tokenParsed.data)
+      .single();
+
+    if (billError || !bill || bill.status === 'expired') {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+
+    const lineTotalCents = parsed.data.quantity * parsed.data.unitPriceCents;
+
+    const { data: item, error: itemError } = await client
+      .from('bill_items')
+      .insert({
+        bill_id: bill.id,
+        name: parsed.data.name,
+        quantity: parsed.data.quantity,
+        unit_price_cents: parsed.data.unitPriceCents,
+        line_total_cents: lineTotalCents,
+      })
+      .select('*')
+      .single();
+
+    if (itemError || !item) {
+      if (itemError && isConflictError(itemError.message)) {
+        return err(c, 'CONFLICT', 'Item creation conflict');
+      }
+      return err(c, 'INTERNAL_ERROR', 'Failed to create item');
+    }
+
+    await client.from('audit_events').insert({
+      bill_id: bill.id,
+      event_type: 'item_added',
+      event_payload: {
+        item_id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit_price_cents: item.unit_price_cents,
+      },
+    });
+
+    const response = {
+      id: item.id,
+      billId: item.bill_id,
+      name: item.name,
+      quantity: item.quantity,
+      unitPriceCents: item.unit_price_cents,
+      lineTotalCents: item.line_total_cents,
+      createdAt: item.created_at,
+    };
+
+    return ok(c, response, 201);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (isConflictError(message)) {
+      return err(c, 'CONFLICT', 'Item creation conflict');
+    }
+    return err(c, 'INTERNAL_ERROR', 'Failed to create item');
+  }
 });
 
 // POST /sessions/:token/allocations
