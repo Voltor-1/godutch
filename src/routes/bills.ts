@@ -10,6 +10,14 @@ import {
   upsertItemAllocation,
 } from '../lib/guest-session';
 import type { BillDTO } from '../types/api';
+import {
+  computeItemsSplit,
+  computePercentageSplit,
+  computeFixedSplit,
+  type ParticipantInput,
+  type ItemsAllocation,
+} from '../lib/compute';
+
 
 const bills = new Hono<{ Bindings: Env }>();
 
@@ -523,8 +531,149 @@ bills.post('/:token/split-mode', async (c) => {
 });
 
 // POST /sessions/:token/compute
-bills.post('/:token/compute', async (c) => {
-  return c.json({ error: { code: 'NOT_IMPLEMENTED', message: 'Coming in issue #7' } }, 501);
+<http://bills.post|bills.post>('/:token/compute', async (c) => {
+  const token = c.req.param('token');
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, 'VALIDATION_ERROR', 'Invalid session token');
+  }
+
+  const client = getAnonClient(c.env);
+
+  try {
+    // Fetch full session snapshot
+    const snapshot = await getGuestSessionFull(client, tokenParsed.data);
+    const { bill, participants, items } = snapshot as any;
+
+    if (!bill || bill.status === 'expired') {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (!participants || participants.length === 0) {
+      return err(c, 'VALIDATION_ERROR', 'Session has no participants');
+    }
+
+    // Fetch active split rule
+    const { data: splitRule, error: splitError } = await client
+      .from('split_rules')
+      .select('*')
+      .eq('bill_id', bill.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (splitError || !splitRule) {
+      return err(c, 'VALIDATION_ERROR', 'No split mode set');
+    }
+
+    const participantInputs: ParticipantInput[] = participants.map((p: any) => ({
+      id: p.id,
+      participantOrder: p.participant_order,
+    }));
+
+    const billTotals = {
+      totalCents: bill.total_cents,
+      subtotalCents: bill.subtotal_cents,
+      taxCents: bill.tax_cents,
+      tipCents: bill.tip_cents,
+      serviceChargeCents: bill.service_charge_cents,
+    };
+
+    let computeResult;
+
+    if (splitRule.split_mode === 'items') {
+      // Fetch allocations
+      const { data: allocations, error: allocError } = await client
+        .from('item_allocations')
+        .select('participant_id, allocated_cents, item_id')
+        .eq('bill_id', bill.id);
+
+      if (allocError) {
+        return err(c, 'INTERNAL_ERROR', 'Failed to fetch allocations');
+      }
+
+      // Validate all items are fully allocated
+      for (const item of items as any[]) {
+        const itemAllocs = (allocations ?? []).filter((a: any) => a.item_id === item.id);
+        const allocSum = itemAllocs.reduce((acc: number, a: any) => acc + Math.trunc(a.allocated_cents), 0);
+        if (allocSum !== Math.trunc(item.line_total_cents)) {
+          return err(c, 'VALIDATION_ERROR', `Item "${item.name}" is not fully allocated`);
+        }
+      }
+
+      const allocationInputs: ItemsAllocation[] = (allocations ?? []).map((a: any) => ({
+        participantId: a.participant_id,
+        allocatedCents: Math.trunc(a.allocated_cents),
+      }));
+
+      computeResult = computeItemsSplit(billTotals, participantInputs, allocationInputs);
+
+    } else if (splitRule.split_mode === 'percentage') {
+      const config = splitRule.config_json as any;
+      if (!config?.percentages) {
+        return err(c, 'VALIDATION_ERROR', 'Percentage split config is missing');
+      }
+      const percentages: Record<string, number> = config.percentages;
+      const basisSum = Object.values(percentages).reduce((acc: number, v: any) => acc + Math.trunc(v), 0);
+      if (basisSum !== 10000) {
+        return err(c, 'VALIDATION_ERROR', 'Percentages do not sum to 100%');
+      }
+      computeResult = computePercentageSplit(billTotals, participantInputs, percentages);
+
+    } else if (splitRule.split_mode === 'fixed') {
+      const config = splitRule.config_json as any;
+      if (!config?.fixedAmounts) {
+        return err(c, 'VALIDATION_ERROR', 'Fixed split config is missing');
+      }
+      const fixedAmounts: Record<string, number> = config.fixedAmounts;
+      const fixedSum = Object.values(fixedAmounts).reduce((acc: number, v: any) => acc + Math.trunc(v), 0);
+      if (fixedSum > Math.trunc(bill.total_cents)) {
+        return err(c, 'VALIDATION_ERROR', 'Fixed amounts exceed total');
+      }
+      computeResult = computeFixedSplit(billTotals, participantInputs, fixedAmounts);
+
+    } else {
+      return err(c, 'VALIDATION_ERROR', 'Unknown split mode');
+    }
+
+    // Upsert participant_totals
+    for (const row of computeResult) {
+      await client.from('participant_totals').upsert({
+        bill_id: bill.id,
+        participant_id: row.participantId,
+        subtotal_cents: row.subtotalCents,
+        tax_cents: row.taxCents,
+        tip_cents: row.tipCents,
+        service_charge_cents: row.serviceChargeCents,
+        total_owed_cents: row.totalOwedCents,
+        remainder_cents: row.remainderCents,
+        remainder_policy: row.remainderPolicy,
+        remainder_trace: row.remainderTrace,
+        computed_at: new Date().toISOString(),
+      }, { onConflict: 'bill_id,participant_id' });
+    }
+
+    // Write audit event
+    await client.from('audit_events').insert({
+      bill_id: bill.id,
+      event_type: 'compute_run',
+      event_payload: {
+        split_mode: splitRule.split_mode,
+        participant_count: participants.length,
+        total_cents: bill.total_cents,
+      },
+    });
+
+    return ok(c, computeResult);
+
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    if (message.includes('SESSION_NOT_FOUND_OR_EXPIRED')) {
+      return err(c, 'GONE', 'Session not found or expired');
+    }
+    if (message.includes('COMPUTE_INVARIANT_VIOLATED')) {
+      return err(c, 'INTERNAL_ERROR', 'Compute invariant violation: ' + message);
+    }
+    return err(c, 'INTERNAL_ERROR', 'Compute failed');
+  }
 });
 
 // POST /sessions/:token/finalize
