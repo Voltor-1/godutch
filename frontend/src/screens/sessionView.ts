@@ -29,7 +29,7 @@ function buildPercentageForm(participants: any[], configJson: any): string {
     rows += '</div>';
   }
   return '<div id="percentage-form">'
-    + '<p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person's share. Must total 100%.</p>'
+    + '<p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person&#39;s share. Must total 100%.</p>'
     + rows
     + '<div id="pct-total-display" style="font-size:0.875rem;margin-bottom:0.5rem;font-weight:600"></div>'
     + '<button id="set-pct-btn" class="btn btn-primary" style="width:100%">Set percentages</button>'
@@ -50,7 +50,7 @@ function buildFixedForm(participants: any[], configJson: any, totalCents: number
     rows += '</div>';
   }
   return '<div id="fixed-form">'
-    + '<p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person's fixed amount.</p>'
+    + '<p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person&#39;s fixed amount.</p>'
     + rows
     + '<div id="fixed-remainder-display" style="font-size:0.875rem;margin-bottom:0.5rem;font-weight:600"></div>'
     + '<button id="set-fixed-btn" class="btn btn-primary" style="width:100%">Set amounts</button>'
