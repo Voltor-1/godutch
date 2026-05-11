@@ -123,11 +123,41 @@ export function renderSession(
 
       <div class="card">
         <h3 style="margin-bottom:0.75rem">Split mode</h3>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'items' ? 'btn-primary' : 'btn-outline'}" data-mode="items">By items</button>
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'percentage' ? 'btn-primary' : 'btn-outline'}" data-mode="percentage">By percentage</button>
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'fixed' ? 'btn-primary' : 'btn-outline'}" data-mode="fixed">Fixed amount</button>
         </div>
+        ${snapshot.splitRules?.[0]?.splitMode === 'percentage' ? `
+        <div id="percentage-form">
+          <p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person's share. Must total 100%.</p>
+          ${participants.map(p => `
+            <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">
+              <label style="flex:1;margin:0;font-size:0.9rem">${p.displayName}</label>
+              <input class="pct-input" data-pid="${p.id}" type="number" min="0" max="100" step="0.01" placeholder="0"
+                value="${(() => { const cfg = snapshot.splitRules?.[0]?.configJson as any; const bp = cfg?.percentages?.[p.id] ?? 0; return bp ? (bp/100).toFixed(2) : ''; })()}"
+                style="width:80px;padding:0.4rem;border:1px solid var(--color-border);border-radius:var(--radius);text-align:right" />
+              <span style="font-size:0.9rem">%</span>
+            </div>`).join('')}
+          <div id="pct-total-display" style="font-size:0.875rem;margin-bottom:0.5rem;font-weight:600"></div>
+          <button id="set-pct-btn" class="btn btn-primary" style="width:100%">Set percentages</button>
+          <div id="pct-error" class="error-msg" style="margin-top:0.35rem"></div>
+        </div>` : ''}
+        ${snapshot.splitRules?.[0]?.splitMode === 'fixed' ? `
+        <div id="fixed-form">
+          <p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person's fixed amount.</p>
+          ${participants.map(p => `
+            <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">
+              <label style="flex:1;margin:0;font-size:0.9rem">${p.displayName}</label>
+              <span style="font-size:0.9rem">$</span>
+              <input class="fixed-input" data-pid="${p.id}" type="number" min="0" step="0.01" placeholder="0.00"
+                value="${(() => { const cfg = snapshot.splitRules?.[0]?.configJson as any; const cents = cfg?.fixedAmounts?.[p.id] ?? 0; return cents ? (cents/100).toFixed(2) : ''; })()}"
+                style="width:90px;padding:0.4rem;border:1px solid var(--color-border);border-radius:var(--radius);text-align:right" />
+            </div>`).join('')}
+          <div id="fixed-remainder-display" style="font-size:0.875rem;margin-bottom:0.5rem;font-weight:600"></div>
+          <button id="set-fixed-btn" class="btn btn-primary" style="width:100%">Set amounts</button>
+          <div id="fixed-error" class="error-msg" style="margin-top:0.35rem"></div>
+        </div>` : ''}
       </div>
 
       <div class="card">
@@ -165,6 +195,90 @@ export function renderSession(
           computeError.textContent = e instanceof ApiError ? e.message : 'Failed to set split mode.';
         }
       });
+    });
+
+    // Percentage form
+    const pctInputs = app.querySelectorAll<HTMLInputElement>('.pct-input');
+    const pctTotalDisplay = app.querySelector<HTMLElement>('#pct-total-display');
+    const setPctBtn = app.querySelector<HTMLButtonElement>('#set-pct-btn');
+    const pctError = app.querySelector<HTMLElement>('#pct-error');
+
+    function updatePctTotal(): void {
+      if (!pctTotalDisplay) return;
+      let total = 0;
+      pctInputs.forEach(i => { total += parseFloat(i.value || '0'); });
+      const rounded = Math.round(total * 100) / 100;
+      pctTotalDisplay.textContent = `Total: ${rounded.toFixed(2)}%`;
+      pctTotalDisplay.style.color = Math.abs(rounded - 100) < 0.01 ? 'var(--color-success)' : 'var(--color-danger)';
+    }
+
+    pctInputs.forEach(i => i.addEventListener('input', updatePctTotal));
+    updatePctTotal();
+
+    setPctBtn?.addEventListener('click', async () => {
+      if (!pctError) return;
+      pctError.textContent = '';
+      const percentages: Record<string, number> = {};
+      let basisTotal = 0;
+      pctInputs.forEach(i => {
+        const bp = Math.round(parseFloat(i.value || '0') * 100);
+        percentages[i.dataset.pid!] = bp;
+        basisTotal += bp;
+      });
+      if (basisTotal !== 10000) {
+        pctError.textContent = `Percentages must total 100% (currently ${(basisTotal/100).toFixed(2)}%)`;
+        return;
+      }
+      setPctBtn.disabled = true;
+      try {
+        await setSplitMode(token, 'percentage', { percentages });
+        fetchSession();
+      } catch (e) {
+        pctError.textContent = e instanceof ApiError ? e.message : 'Failed to set percentages.';
+        setPctBtn.disabled = false;
+      }
+    });
+
+    // Fixed amount form
+    const fixedInputs = app.querySelectorAll<HTMLInputElement>('.fixed-input');
+    const fixedRemainderDisplay = app.querySelector<HTMLElement>('#fixed-remainder-display');
+    const setFixedBtn = app.querySelector<HTMLButtonElement>('#set-fixed-btn');
+    const fixedError = app.querySelector<HTMLElement>('#fixed-error');
+
+    function updateFixedRemainder(): void {
+      if (!fixedRemainderDisplay) return;
+      let totalFixed = 0;
+      fixedInputs.forEach(i => { totalFixed += Math.round(parseFloat(i.value || '0') * 100); });
+      const remainder = snapshot.bill.totalCents - totalFixed;
+      fixedRemainderDisplay.textContent = `Remainder: ${formatCurrency(remainder, snapshot.bill.currencyCode)}`;
+      fixedRemainderDisplay.style.color = remainder >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+    }
+
+    fixedInputs.forEach(i => i.addEventListener('input', updateFixedRemainder));
+    updateFixedRemainder();
+
+    setFixedBtn?.addEventListener('click', async () => {
+      if (!fixedError) return;
+      fixedError.textContent = '';
+      const fixedAmounts: Record<string, number> = {};
+      let totalFixed = 0;
+      fixedInputs.forEach(i => {
+        const cents = Math.round(parseFloat(i.value || '0') * 100);
+        fixedAmounts[i.dataset.pid!] = cents;
+        totalFixed += cents;
+      });
+      if (totalFixed > snapshot.bill.totalCents) {
+        fixedError.textContent = 'Fixed amounts exceed the bill total.';
+        return;
+      }
+      setFixedBtn.disabled = true;
+      try {
+        await setSplitMode(token, 'fixed', { fixedAmounts });
+        fetchSession();
+      } catch (e) {
+        fixedError.textContent = e instanceof ApiError ? e.message : 'Failed to set amounts.';
+        setFixedBtn.disabled = false;
+      }
     });
 
     app.querySelectorAll<HTMLButtonElement>('.alloc-btn').forEach(btn => {
