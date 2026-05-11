@@ -16,6 +16,48 @@ import { showJoinModal } from '../components/joinModal';
 import { showAddItemModal } from '../components/addItemModal';
 import { renderFinalized } from './finalized';
 
+function buildPercentageForm(participants: any[], configJson: any): string {
+  const cfg = configJson as any;
+  let rows = '';
+  for (const p of participants) {
+    const bp = cfg && cfg.percentages && cfg.percentages[p.id] ? cfg.percentages[p.id] : 0;
+    const val = bp ? (bp / 100).toFixed(2) : '';
+    rows += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">';
+    rows += '<label style="flex:1;margin:0;font-size:0.9rem">' + p.displayName + '</label>';
+    rows += '<input class="pct-input" data-pid="' + p.id + '" type="number" min="0" max="100" step="0.01" placeholder="0" value="' + val + '" style="width:80px;padding:0.4rem;border:1px solid var(--color-border);border-radius:var(--radius);text-align:right" />';
+    rows += '<span style="font-size:0.9rem">%</span>';
+    rows += '</div>';
+  }
+  return '<div id="percentage-form">'
+    + '<p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person's share. Must total 100%.</p>'
+    + rows
+    + '<div id="pct-total-display" style="font-size:0.875rem;margin-bottom:0.5rem;font-weight:600"></div>'
+    + '<button id="set-pct-btn" class="btn btn-primary" style="width:100%">Set percentages</button>'
+    + '<div id="pct-error" class="error-msg" style="margin-top:0.35rem"></div>'
+    + '</div>';
+}
+
+function buildFixedForm(participants: any[], configJson: any, totalCents: number, currencyCode: string): string {
+  const cfg = configJson as any;
+  let rows = '';
+  for (const p of participants) {
+    const cents = cfg && cfg.fixedAmounts && cfg.fixedAmounts[p.id] ? cfg.fixedAmounts[p.id] : 0;
+    const val = cents ? (cents / 100).toFixed(2) : '';
+    rows += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">';
+    rows += '<label style="flex:1;margin:0;font-size:0.9rem">' + p.displayName + '</label>';
+    rows += '<span style="font-size:0.9rem">$</span>';
+    rows += '<input class="fixed-input" data-pid="' + p.id + '" type="number" min="0" step="0.01" placeholder="0.00" value="' + val + '" style="width:90px;padding:0.4rem;border:1px solid var(--color-border);border-radius:var(--radius);text-align:right" />';
+    rows += '</div>';
+  }
+  return '<div id="fixed-form">'
+    + '<p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person's fixed amount.</p>'
+    + rows
+    + '<div id="fixed-remainder-display" style="font-size:0.875rem;margin-bottom:0.5rem;font-weight:600"></div>'
+    + '<button id="set-fixed-btn" class="btn btn-primary" style="width:100%">Set amounts</button>'
+    + '<div id="fixed-error" class="error-msg" style="margin-top:0.35rem"></div>'
+    + '</div>';
+}
+
 export function renderSession(
   app: HTMLElement,
   token: string,
@@ -128,36 +170,7 @@ export function renderSession(
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'percentage' ? 'btn-primary' : 'btn-outline'}" data-mode="percentage">By percentage</button>
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'fixed' ? 'btn-primary' : 'btn-outline'}" data-mode="fixed">Fixed amount</button>
         </div>
-        ${snapshot.splitRules?.[0]?.splitMode === 'percentage' ? `
-        <div id="percentage-form">
-          <p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person's share. Must total 100%.</p>
-          ${participants.map(p => `
-            <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">
-              <label style="flex:1;margin:0;font-size:0.9rem">${p.displayName}</label>
-              <input class="pct-input" data-pid="${p.id}" type="number" min="0" max="100" step="0.01" placeholder="0"
-                value="${(() => { const cfg = snapshot.splitRules?.[0]?.configJson as any; const bp = cfg?.percentages?.[p.id] ?? 0; return bp ? (bp/100).toFixed(2) : ''; })()}"
-                style="width:80px;padding:0.4rem;border:1px solid var(--color-border);border-radius:var(--radius);text-align:right" />
-              <span style="font-size:0.9rem">%</span>
-            </div>`).join('')}
-          <div id="pct-total-display" style="font-size:0.875rem;margin-bottom:0.5rem;font-weight:600"></div>
-          <button id="set-pct-btn" class="btn btn-primary" style="width:100%">Set percentages</button>
-          <div id="pct-error" class="error-msg" style="margin-top:0.35rem"></div>
-        </div>` : ''}
-        ${snapshot.splitRules?.[0]?.splitMode === 'fixed' ? `
-        <div id="fixed-form">
-          <p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person's fixed amount.</p>
-          ${participants.map(p => `
-            <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">
-              <label style="flex:1;margin:0;font-size:0.9rem">${p.displayName}</label>
-              <span style="font-size:0.9rem">$</span>
-              <input class="fixed-input" data-pid="${p.id}" type="number" min="0" step="0.01" placeholder="0.00"
-                value="${(() => { const cfg = snapshot.splitRules?.[0]?.configJson as any; const cents = cfg?.fixedAmounts?.[p.id] ?? 0; return cents ? (cents/100).toFixed(2) : ''; })()}"
-                style="width:90px;padding:0.4rem;border:1px solid var(--color-border);border-radius:var(--radius);text-align:right" />
-            </div>`).join('')}
-          <div id="fixed-remainder-display" style="font-size:0.875rem;margin-bottom:0.5rem;font-weight:600"></div>
-          <button id="set-fixed-btn" class="btn btn-primary" style="width:100%">Set amounts</button>
-          <div id="fixed-error" class="error-msg" style="margin-top:0.35rem"></div>
-        </div>` : ''}
+        <div id="split-mode-form"></div>
       </div>
 
       <div class="card">
@@ -169,6 +182,19 @@ export function renderSession(
         <div id="totals-section" style="margin-top:1rem"></div>
       </div>
     `;
+
+    // ── Inject split mode forms ──────────────────────────────────────
+    const formContainer = app.querySelector<HTMLElement>('#split-mode-form');
+    if (formContainer) {
+      const activeRule = snapshot.splitRules && snapshot.splitRules[0];
+      const activeMode = activeRule ? activeRule.splitMode : null;
+      const activeCfg = activeRule ? activeRule.configJson : null;
+      if (activeMode === 'percentage') {
+        formContainer.innerHTML = buildPercentageForm(participants, activeCfg);
+      } else if (activeMode === 'fixed') {
+        formContainer.innerHTML = buildFixedForm(participants, activeCfg, bill.totalCents, bill.currencyCode);
+      }
+    }
 
     // ── Event listeners ───────────────────────────────────────────
 
