@@ -31,7 +31,7 @@ async function render(): Promise<void> {
     const { renderHome } = await import('./screens/home');
     renderHome(app, navigate);
   } else if (route.name === 'session') {
-    const { renderSession } = await import('./screens/session');
+    const { renderSession } = await import('./screens/sessionView');
     renderSession(app, route.token, navigate);
   } else {
     app.innerHTML = '<div class="container"><p>Page not found.</p></div>';
