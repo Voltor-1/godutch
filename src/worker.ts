@@ -5,6 +5,7 @@ import { err } from './lib/response';
 import type { Env } from './lib/supabase';
 import health from './routes/health';
 import bills from './routes/bills';
+import { pingHandler } from './routes/ping';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -18,6 +19,7 @@ app.use('*', cors({
 
 // ── Routes ──────────────────────────────────────────────────────
 app.route('/health', health);
+app.get('/ping', pingHandler);
 app.route('/sessions', bills);
 
 // ── Global error handler ─────────────────────────────────────────

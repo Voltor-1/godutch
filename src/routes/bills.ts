@@ -85,7 +85,7 @@ bills.post('/', async (c) => {
     const { data, error } = await client
       .rpc('create_session', {
         p_title: body.title ?? null,
-        p_currency_code: body.currencyCode.toUpperCase(),
+        p_currency_code: (body.currencyCode ?? 'USD').toUpperCase(),
         p_share_token: shareToken,
         p_subtotal_cents: body.subtotalCents,
         p_tax_cents: body.taxCents,
