@@ -156,6 +156,29 @@ bills.get('/:token', async (c) => {
   }
 });
 
+bills.delete(":token", async (c) => {
+  const token = c.req.param("token");
+  const tokenParsed = tokenSchema.safeParse(token);
+  if (!tokenParsed.success) {
+    return err(c, "VALIDATION_ERROR", "Invalid session token");
+  }
+  const client = getAnonClient(c.env);
+  try {
+    const { error } = await client.rpc("expire_session", { p_share_token: tokenParsed.data });
+    if (error) {
+      if (error.message.includes("SESSION_NOT_FOUND_OR_EXPIRED")) return err(c, "GONE", "Session not found or expired");
+      if (error.message.includes("ALREADY_FINALIZED")) return err(c, "CONFLICT", "Cannot delete a finalized session");
+      return err(c, "INTERNAL_ERROR", "Failed to expire session");
+    }
+    return ok(c, { deleted: true as const });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    if (message.includes("SESSION_NOT_FOUND_OR_EXPIRED")) return err(c, "GONE", "Session not found or expired");
+    if (message.includes("ALREADY_FINALIZED")) return err(c, "CONFLICT", "Cannot delete a finalized session");
+    return err(c, "INTERNAL_ERROR", "Failed to expire session");
+  }
+});
+
 // POST /sessions/:token/participants
 bills.post('/:token/participants', async (c) => {
   const token = c.req.param('token');
