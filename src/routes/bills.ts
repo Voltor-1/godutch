@@ -156,7 +156,7 @@ bills.get('/:token', async (c) => {
   }
 });
 
-bills.delete(":token", async (c) => {
+bills.delete('/:token', async (c) => {
   const token = c.req.param("token");
   const tokenParsed = tokenSchema.safeParse(token);
   if (!tokenParsed.success) {
