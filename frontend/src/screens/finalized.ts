@@ -2,6 +2,7 @@
 // Read-only summary shown after a session is finalized.
 
 import type { SessionSnapshot, ParticipantTotalDTO } from '../api';
+import { showShareModal } from '../components/shareModal';
 import { formatCurrency } from '../store';
 
 export function renderFinalized(
@@ -40,6 +41,14 @@ export function renderFinalized(
       <p style="margin-top:1rem;font-size:0.8rem;color:var(--color-muted)">
         Remainders distributed by largest-remainder method. Read-only until ${new Date(bill.expiresAt).toLocaleDateString()}.
       </p>
+      <button id="finalized-share-btn" class="btn btn-outline" style="width:100%;margin-top:1rem">Share</button>
     </div>
   `;
+
+  const tokenMatch = window.location.hash.match(/^#\/session\/([a-f0-9]{64})$/);
+  const token = tokenMatch?.[1];
+  container.querySelector<HTMLButtonElement>('#finalized-share-btn')?.addEventListener('click', () => {
+    if (!token) return;
+    showShareModal(token, bill.title ?? 'Bill split');
+  });
 }
