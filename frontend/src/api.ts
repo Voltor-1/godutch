@@ -117,3 +117,8 @@ export function deleteSession(token: string, participantToken: string): Promise<
     body: JSON.stringify({ participantToken }),
   });
 }
+
+
+export function getSessionStatus(token: string): Promise<{ status: string; expiresAt: string }> {
+  return apiFetch(`/sessions/${token}/status`);
+}

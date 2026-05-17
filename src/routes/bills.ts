@@ -182,6 +182,7 @@ bills.delete('/:token', async (c) => {
     const message = e instanceof Error ? e.message : "Unknown error";
     if (message.includes("SESSION_NOT_FOUND_OR_EXPIRED")) return err(c, "GONE", "Session not found or expired");
     if (message.includes("ALREADY_FINALIZED")) return err(c, "CONFLICT", "Cannot delete a finalized session");
+    if (message.includes("NOT_SESSION_OWNER")) return err(c, "FORBIDDEN", "Only the session creator can delete this session");
     return err(c, "INTERNAL_ERROR", "Failed to expire session");
   }
 });
