@@ -4,7 +4,7 @@
 
 import {
   getSession, computeSplit, finalizeSession, setSplitMode,
-  upsertAllocation, ApiError,
+  upsertAllocation, deleteSession, ApiError,
   type SessionSnapshot, type ParticipantTotalDTO,
 } from '../api';
 import {
@@ -184,6 +184,20 @@ export function renderSession(
         <div id="compute-error" class="error-msg" style="margin-top:var(--spacing-sm)"></div>
         <div id="totals-section" style="margin-top:var(--spacing-md)"></div>
       </div>
+
+      ${(() => {
+        const isOwner = stored && participants.some(
+          p => p.id === stored.participantId && p.participantOrder === 1
+        );
+        return isOwner ? `
+          <div class="card" style="border:1px solid var(--color-danger)">
+            <h3 class="text-sm" style="color:var(--color-danger);margin-bottom:var(--spacing-sm)">Danger zone</h3>
+            <p class="text-xs text-muted" style="margin-bottom:var(--spacing-sm)">Permanently expire this session. This cannot be undone.</p>
+            <button id="delete-session-btn" class="btn btn-danger btn-full">Delete Session</button>
+            <div id="delete-error" class="error-msg" style="margin-top:0.35rem"></div>
+          </div>
+        ` : '';
+      })()}
     `;
 
     const formContainer = app.querySelector<HTMLElement>('#split-mode-form');
@@ -344,6 +358,26 @@ export function renderSession(
         fetchSession();
       } catch (e) {
         computeError.textContent = e instanceof ApiError ? e.message : 'Finalization failed.';
+      }
+    });
+
+    // Delete session handler
+    app.querySelector('#delete-session-btn')?.addEventListener('click', async () => {
+      if (!stored) return;
+      if (!confirm('Are you sure you want to delete this session? This cannot be undone.')) return;
+      const deleteBtn = app.querySelector<HTMLButtonElement>('#delete-session-btn')!;
+      const deleteError = app.querySelector<HTMLElement>('#delete-error')!;
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = 'Deleting…';
+      deleteError.textContent = '';
+      try {
+        await deleteSession(token, stored.participantToken);
+        poller?.stop();
+        navigate('/');
+      } catch (e) {
+        deleteError.textContent = e instanceof ApiError ? e.message : 'Failed to delete session.';
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = 'Delete Session';
       }
     });
 
