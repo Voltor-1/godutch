@@ -12,7 +12,7 @@ export function renderHome(app: HTMLElement, navigate: (path: string) => void): 
     </header>
     <div class="container">
       <div class="card">
-        <h2 style="margin-bottom:1rem;color:var(--color-primary)">New bill session</h2>
+        <h2 class="text-xl text-primary" style="margin-bottom:var(--spacing-md)">New bill session</h2>
         <div class="form-group">
           <label for="title">Title (optional)</label>
           <input id="title" type="text" placeholder="e.g. Dinner at La Mar" maxlength="200" />
@@ -33,10 +33,10 @@ export function renderHome(app: HTMLElement, navigate: (path: string) => void): 
           <label for="service">Service charge ($)</label>
           <input id="service" type="number" min="0" step="0.01" placeholder="0.00" />
         </div>
-        <div id="total-preview" style="margin-bottom:1rem;font-weight:600;color:var(--color-primary)"></div>
+        <div id="total-preview" class="font-semibold text-primary" style="margin-bottom:var(--spacing-md)"></div>
         <div id="home-error" class="error-msg"></div>
-        <button id="create-btn" class="btn btn-primary" style="width:100%;margin-top:0.5rem">
-          Create session & get share link
+        <button id="create-btn" class="btn btn-primary btn-full" style="margin-top:var(--spacing-sm)">
+          Create session &amp; get share link
         </button>
       </div>
     </div>
