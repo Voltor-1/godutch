@@ -248,7 +248,7 @@ export function renderSession(
       pctInputs.forEach(i => { total += parseFloat(i.value || '0'); });
       const rounded = Math.round(total * 100) / 100;
       pctTotalDisplay.textContent = `Total: ${rounded.toFixed(2)}%`;
-      pctTotalDisplay.style.color = Math.abs(rounded - 100) < 0.01 ? 'var(--color-success)' : 'var(--color-danger)';
+      pctTotalDisplay.className = `text-sm font-semibold ${Math.abs(rounded - 100) < 0.01 ? 'text-success' : 'text-danger'}`;
     }
 
     pctInputs.forEach(i => i.addEventListener('input', updatePctTotal));
@@ -289,7 +289,7 @@ export function renderSession(
       fixedInputs.forEach(i => { totalFixed += Math.round(parseFloat(i.value || '0') * 100); });
       const remainder = snapshot.bill.totalCents - totalFixed;
       fixedRemainderDisplay.textContent = `Remainder: ${formatCurrency(remainder, snapshot.bill.currencyCode)}`;
-      fixedRemainderDisplay.style.color = remainder >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+      fixedRemainderDisplay.className = `text-sm font-semibold ${remainder >= 0 ? 'text-success' : 'text-danger'}`;
     }
 
     fixedInputs.forEach(i => i.addEventListener('input', updateFixedRemainder));
