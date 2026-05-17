@@ -95,10 +95,7 @@ bills.post('/', async (c) => {
       });
 
     if (error) {
-      if (error.message.includes("SESSION_NOT_FOUND_OR_EXPIRED")) return err(c, "GONE", "Session not found or expired");
-      if (error.message.includes("ALREADY_FINALIZED")) return err(c, "CONFLICT", "Cannot delete a finalized session");
-      if (error.message.includes("NOT_SESSION_OWNER")) return err(c, "FORBIDDEN", "Only the session creator can delete this session");
-      return err(c, "INTERNAL_ERROR", "Failed to expire session");
+      return err(c, 'INTERNAL_ERROR', 'Failed to create session');
     }
 
     const dto: BillDTO = {
