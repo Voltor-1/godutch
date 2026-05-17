@@ -95,10 +95,10 @@ bills.post('/', async (c) => {
       });
 
     if (error) {
-      if (isConflictError(error.message)) {
-        return err(c, 'CONFLICT', 'Session creation conflict');
-      }
-      return err(c, 'INTERNAL_ERROR', 'Failed to create session');
+      if (error.message.includes("SESSION_NOT_FOUND_OR_EXPIRED")) return err(c, "GONE", "Session not found or expired");
+      if (error.message.includes("ALREADY_FINALIZED")) return err(c, "CONFLICT", "Cannot delete a finalized session");
+      if (error.message.includes("NOT_SESSION_OWNER")) return err(c, "FORBIDDEN", "Only the session creator can delete this session");
+      return err(c, "INTERNAL_ERROR", "Failed to expire session");
     }
 
     const dto: BillDTO = {
@@ -162,9 +162,15 @@ bills.delete('/:token', async (c) => {
   if (!tokenParsed.success) {
     return err(c, "VALIDATION_ERROR", "Invalid session token");
   }
+  const raw = await c.req.json().catch(() => null);
+  const parsed = parseBody(deleteSessionSchema, raw);
+  if ('error' in parsed) {
+    return err(c, 'VALIDATION_ERROR', parsed.error);
+  }
+
   const client = getAnonClient(c.env);
   try {
-    const { error } = await client.rpc("expire_session", { p_share_token: tokenParsed.data });
+    const { error } = await client.rpc("expire_session_as_owner", { p_share_token: tokenParsed.data, p_participant_token: parsed.data.participantToken });
     if (error) {
       if (error.message.includes("SESSION_NOT_FOUND_OR_EXPIRED")) return err(c, "GONE", "Session not found or expired");
       if (error.message.includes("ALREADY_FINALIZED")) return err(c, "CONFLICT", "Cannot delete a finalized session");
