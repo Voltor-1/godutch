@@ -190,8 +190,8 @@ export function renderSession(
           p => p.id === stored.participantId && p.participantOrder === 1
         );
         return isOwner ? `
-          <div class="card" class="card card-danger">
-            <h3 class="text-sm" class="text-sm text-danger">Danger zone</h3>
+          <div class="card card-danger">
+            <h3 class="text-sm text-danger">Danger zone</h3>
             <p class="text-xs text-muted">Permanently expire this session. This cannot be undone.</p>
             <button id="delete-session-btn" class="btn btn-danger btn-full">Delete Session</button>
             <div id="delete-error" class="error-msg"></div>

@@ -12,7 +12,7 @@ export function renderHome(app: HTMLElement, navigate: (path: string) => void): 
     </header>
     <div class="container">
       <div class="card">
-        <h2 class="text-xl text-primary">New bill session</h2>
+        <h2 class="text-2xl text-primary">New bill session</h2>
         <div class="form-group">
           <label for="title">Title (optional)</label>
           <input id="title" type="text" placeholder="e.g. Dinner at La Mar" maxlength="200" />
