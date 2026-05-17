@@ -13,7 +13,7 @@ export function showJoinModal(
   overlay.innerHTML = `
     <div class="modal">
       <h2 class="text-primary">Join this session</h2>
-      <p class="text-sm text-muted" style="margin-bottom:var(--spacing-md)">
+      <p class="text-sm text-muted">
         Enter your name so others can see who owes what.
       </p>
       <div class="form-group">
@@ -21,9 +21,9 @@ export function showJoinModal(
         <input id="join-name" type="text" placeholder="e.g. Alex" maxlength="100" autofocus />
       </div>
       <div id="join-error" class="error-msg"></div>
-      <div style="display:flex;gap:var(--spacing-sm);margin-top:var(--spacing-md)">
-        <button id="join-cancel" class="btn btn-outline" style="flex:1">Cancel</button>
-        <button id="join-confirm" class="btn btn-primary" style="flex:2">Join</button>
+      <div class="two-col-actions mt-md">
+        <button id="join-cancel" class="btn btn-outline">Cancel</button>
+        <button id="join-confirm" class="btn btn-primary">Join</button>
       </div>
     </div>
   `;

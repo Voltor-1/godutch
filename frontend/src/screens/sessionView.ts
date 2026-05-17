@@ -31,11 +31,11 @@ function buildPercentageForm(participants: any[], configJson: any): string {
     </div>`;
   }
   return `<div id="percentage-form">
-    <p class="text-sm text-muted" style="margin-bottom:var(--spacing-sm)">Enter each person's share. Must total 100%.</p>
+    <p class="text-sm text-muted">Enter each person's share. Must total 100%.</p>
     ${rows}
-    <div id="pct-total-display" class="text-sm font-semibold" style="margin-bottom:var(--spacing-sm)"></div>
+    <div id="pct-total-display" class="text-sm font-semibold"></div>
     <button id="set-pct-btn" class="btn btn-primary btn-full">Set percentages</button>
-    <div id="pct-error" class="error-msg" style="margin-top:0.35rem"></div>
+    <div id="pct-error" class="error-msg"></div>
   </div>`;
 }
 
@@ -52,11 +52,11 @@ function buildFixedForm(participants: any[], configJson: any, totalCents: number
     </div>`;
   }
   return `<div id="fixed-form">
-    <p class="text-sm text-muted" style="margin-bottom:var(--spacing-sm)">Enter each person's fixed amount.</p>
+    <p class="text-sm text-muted">Enter each person's fixed amount.</p>
     ${rows}
-    <div id="fixed-remainder-display" class="text-sm font-semibold" style="margin-bottom:var(--spacing-sm)"></div>
+    <div id="fixed-remainder-display" class="text-sm font-semibold"></div>
     <button id="set-fixed-btn" class="btn btn-primary btn-full">Set amounts</button>
-    <div id="fixed-error" class="error-msg" style="margin-top:0.35rem"></div>
+    <div id="fixed-error" class="error-msg"></div>
   </div>`;
 }
 
@@ -74,7 +74,7 @@ export function renderSession(
       <p id="session-subtitle">Loading session…</p>
     </header>
     <div class="container">
-      <div id="session-error" class="error-msg" style="margin:var(--spacing-md) 0"></div>
+      <div id="session-error" class="error-msg"></div>
       <div id="session-content">${renderSessionSkeleton()}</div>
     </div>
   `;
@@ -127,7 +127,7 @@ export function renderSession(
       const allocBtns = participants.map(p => {
         const isMe = p.id === stored?.participantId;
         return isMe
-          ? `<button class="btn btn-outline alloc-btn" data-item="${item.id}" data-cents="${item.lineTotalCents}" style="font-size:var(--font-size-xs);padding:0.3rem 0.6rem">Claim</button>`
+          ? `<button class="btn btn-outline alloc-btn" data-item="${item.id}" data-cents="${item.lineTotalCents}">Claim</button>`
           : '';
       }).join('');
       return `<div class="item-row">
@@ -149,26 +149,26 @@ export function renderSession(
 
       <div class="card">
         <div class="card-header">
-          <h3 class="section-heading" style="margin-bottom:0">Participants (${participants.length})</h3>
-          ${!stored ? '<button id="join-btn" class="btn btn-primary" style="font-size:var(--font-size-sm)">Join</button>' : ''}
+          <h3 class="section-heading">Participants (${participants.length})</h3>
+          ${!stored ? '<button id="join-btn" class="btn btn-primary">Join</button>' : ''}
         </div>
         ${participantRows}
-        <div style="margin-top:var(--spacing-md)">
-          <button id="share-btn" class="btn btn-outline btn-full" style="font-size:var(--font-size-sm)">📤 Share session</button>
+        <div class="mt-md">
+          <button id="share-btn" class="btn btn-outline btn-full">📤 Share session</button>
         </div>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <h3 class="section-heading" style="margin-bottom:0">Items (${items.length})</h3>
-          <button id="add-item-btn" class="btn btn-outline" style="font-size:var(--font-size-sm)">+ Add item</button>
+          <h3 class="section-heading">Items (${items.length})</h3>
+          <button id="add-item-btn" class="btn btn-outline">+ Add item</button>
         </div>
         ${itemRows}
       </div>
 
       <div class="card">
         <h3 class="section-heading">Split mode</h3>
-        <div style="display:flex;gap:var(--spacing-sm);flex-wrap:wrap;margin-bottom:var(--spacing-md)">
+        <div class="split-actions">
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'items' ? 'btn-primary' : 'btn-outline'}" data-mode="items">By items</button>
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'percentage' ? 'btn-primary' : 'btn-outline'}" data-mode="percentage">By percentage</button>
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'fixed' ? 'btn-primary' : 'btn-outline'}" data-mode="fixed">Fixed amount</button>
@@ -177,12 +177,12 @@ export function renderSession(
       </div>
 
       <div class="card">
-        <div style="display:flex;gap:var(--spacing-sm)">
-          <button id="compute-btn" class="btn btn-outline" style="flex:1">Calculate</button>
-          <button id="finalize-btn" class="btn btn-primary" style="flex:1">Finalize</button>
+        <div class="two-col-actions">
+          <button id="compute-btn" class="btn btn-outline">Calculate</button>
+          <button id="finalize-btn" class="btn btn-primary">Finalize</button>
         </div>
-        <div id="compute-error" class="error-msg" style="margin-top:var(--spacing-sm)"></div>
-        <div id="totals-section" style="margin-top:var(--spacing-md)"></div>
+        <div id="compute-error" class="error-msg mt-sm"></div>
+        <div id="totals-section" class="mt-md"></div>
       </div>
 
       ${(() => {
@@ -190,11 +190,11 @@ export function renderSession(
           p => p.id === stored.participantId && p.participantOrder === 1
         );
         return isOwner ? `
-          <div class="card" style="border:1px solid var(--color-danger)">
-            <h3 class="text-sm" style="color:var(--color-danger);margin-bottom:var(--spacing-sm)">Danger zone</h3>
-            <p class="text-xs text-muted" style="margin-bottom:var(--spacing-sm)">Permanently expire this session. This cannot be undone.</p>
+          <div class="card" class="card card-danger">
+            <h3 class="text-sm" class="text-sm text-danger">Danger zone</h3>
+            <p class="text-xs text-muted">Permanently expire this session. This cannot be undone.</p>
             <button id="delete-session-btn" class="btn btn-danger btn-full">Delete Session</button>
-            <div id="delete-error" class="error-msg" style="margin-top:0.35rem"></div>
+            <div id="delete-error" class="error-msg"></div>
           </div>
         ` : '';
       })()}

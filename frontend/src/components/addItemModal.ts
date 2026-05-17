@@ -26,11 +26,11 @@ export function showAddItemModal(
         <label for="item-price">Unit price</label>
         <input id="item-price" type="number" min="0" step="0.01" placeholder="0.00" />
       </div>
-      <div id="item-total-preview" class="font-semibold text-primary" style="margin-bottom:var(--spacing-sm)"></div>
+      <div id="item-total-preview" class="font-semibold text-primary"></div>
       <div id="item-error" class="error-msg"></div>
-      <div style="display:flex;gap:var(--spacing-sm);margin-top:var(--spacing-md)">
-        <button id="item-cancel" class="btn btn-outline" style="flex:1">Cancel</button>
-        <button id="item-confirm" class="btn btn-primary" style="flex:2">Add item</button>
+      <div class="two-col-actions mt-md">
+        <button id="item-cancel" class="btn btn-outline">Cancel</button>
+        <button id="item-confirm" class="btn btn-primary">Add item</button>
       </div>
     </div>
   `;

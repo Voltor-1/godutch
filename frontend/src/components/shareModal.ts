@@ -20,7 +20,7 @@ export function showShareModal(token: string, sessionTitle: string): void {
     overlay.innerHTML = `
       <div class="modal share-modal">
         <h2 class="text-primary">Share session</h2>
-        <p class="text-sm text-muted" style="margin-bottom:var(--spacing-md)">
+        <p class="text-sm text-muted">
           Share this bill using your preferred app.
         </p>
         <div class="share-option-grid">
@@ -28,7 +28,7 @@ export function showShareModal(token: string, sessionTitle: string): void {
           <button class="btn share-option-btn" id="share-sms">📱 SMS</button>
           <button class="btn share-option-btn" id="share-copy">📋 Copy link</button>
         </div>
-        <button class="btn btn-outline btn-full" id="share-close" style="margin-top:var(--spacing-md)">Close</button>
+        <button class="btn btn-outline btn-full" id="share-close">Close</button>
       </div>
     `;
     document.body.appendChild(overlay);

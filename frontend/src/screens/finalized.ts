@@ -33,17 +33,17 @@ export function renderFinalized(
         <h2 class="text-primary">${bill.title ?? 'Bill'}</h2>
         <span class="badge badge-finalized">Finalized</span>
       </div>
-      <div class="total-row" style="margin-bottom:var(--spacing-sm)">
+      <div class="total-row">
         <span class="text-muted">Total</span>
         <span class="font-semibold">${formatCurrency(bill.totalCents, bill.currencyCode)}</span>
       </div>
       <hr class="divider" />
       <h3 class="section-heading">What each person owes</h3>
       ${rows}
-      <p class="text-xs text-muted" style="margin-top:var(--spacing-md)">
+      <p class="text-xs text-muted">
         Remainders distributed by largest-remainder method. Read-only until ${new Date(bill.expiresAt).toLocaleDateString()}.
       </p>
-      <button id="finalized-share-btn" class="btn btn-outline btn-full" style="margin-top:var(--spacing-md)">
+      <button id="finalized-share-btn" class="btn btn-outline btn-full">
         📤 Share
       </button>
     </div>
