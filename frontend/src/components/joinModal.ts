@@ -1,6 +1,5 @@
 // ── Join modal ────────────────────────────────────────────────────
 // Guest enters display name to join a session.
-// Returns the participant including participantToken on success.
 
 import { addParticipant, ApiError, type ParticipantDTO } from '../api';
 import { storeParticipant } from '../store';
@@ -13,8 +12,8 @@ export function showJoinModal(
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h2 style="color:var(--color-primary)">Join this session</h2>
-      <p style="margin-bottom:1rem;color:var(--color-muted);font-size:0.9rem">
+      <h2 class="text-primary">Join this session</h2>
+      <p class="text-sm text-muted" style="margin-bottom:var(--spacing-md)">
         Enter your name so others can see who owes what.
       </p>
       <div class="form-group">
@@ -22,7 +21,7 @@ export function showJoinModal(
         <input id="join-name" type="text" placeholder="e.g. Alex" maxlength="100" autofocus />
       </div>
       <div id="join-error" class="error-msg"></div>
-      <div style="display:flex;gap:0.5rem;margin-top:1rem">
+      <div style="display:flex;gap:var(--spacing-sm);margin-top:var(--spacing-md)">
         <button id="join-cancel" class="btn btn-outline" style="flex:1">Cancel</button>
         <button id="join-confirm" class="btn btn-primary" style="flex:2">Join</button>
       </div>
@@ -38,10 +37,7 @@ export function showJoinModal(
   function close(): void { overlay.remove(); }
   cancelBtn.addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-
-  nameInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') confirmBtn.click();
-  });
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmBtn.click(); });
 
   confirmBtn.addEventListener('click', async () => {
     const name = nameInput.value.trim();

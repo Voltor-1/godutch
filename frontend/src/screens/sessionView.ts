@@ -14,6 +14,8 @@ import {
 import { createPoller } from '../polling';
 import { showJoinModal } from '../components/joinModal';
 import { showAddItemModal } from '../components/addItemModal';
+import { showShareModal } from '../components/shareModal';
+import { renderSessionSkeleton } from '../components/loading';
 import { renderFinalized } from './finalized';
 
 function buildPercentageForm(participants: any[], configJson: any): string {
@@ -22,19 +24,19 @@ function buildPercentageForm(participants: any[], configJson: any): string {
   for (const p of participants) {
     const bp = cfg && cfg.percentages && cfg.percentages[p.id] ? cfg.percentages[p.id] : 0;
     const val = bp ? (bp / 100).toFixed(2) : '';
-    rows += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">';
-    rows += '<label style="flex:1;margin:0;font-size:0.9rem">' + p.displayName + '</label>';
-    rows += '<input class="pct-input" data-pid="' + p.id + '" type="number" min="0" max="100" step="0.01" placeholder="0" value="' + val + '" style="width:80px;padding:0.4rem;border:1px solid var(--color-border);border-radius:var(--radius);text-align:right" />';
-    rows += '<span style="font-size:0.9rem">%</span>';
-    rows += '</div>';
+    rows += `<div class="split-row">
+      <label>${p.displayName}</label>
+      <input class="pct-input split-input" data-pid="${p.id}" type="number" min="0" max="100" step="0.01" placeholder="0" value="${val}" />
+      <span class="split-unit">%</span>
+    </div>`;
   }
-  return '<div id="percentage-form">'
-    + '<p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person&#39;s share. Must total 100%.</p>'
-    + rows
-    + '<div id="pct-total-display" style="font-size:0.875rem;margin-bottom:0.5rem;font-weight:600"></div>'
-    + '<button id="set-pct-btn" class="btn btn-primary" style="width:100%">Set percentages</button>'
-    + '<div id="pct-error" class="error-msg" style="margin-top:0.35rem"></div>'
-    + '</div>';
+  return `<div id="percentage-form">
+    <p class="text-sm text-muted" style="margin-bottom:var(--spacing-sm)">Enter each person's share. Must total 100%.</p>
+    ${rows}
+    <div id="pct-total-display" class="text-sm font-semibold" style="margin-bottom:var(--spacing-sm)"></div>
+    <button id="set-pct-btn" class="btn btn-primary btn-full">Set percentages</button>
+    <div id="pct-error" class="error-msg" style="margin-top:0.35rem"></div>
+  </div>`;
 }
 
 function buildFixedForm(participants: any[], configJson: any, totalCents: number, currencyCode: string): string {
@@ -43,19 +45,19 @@ function buildFixedForm(participants: any[], configJson: any, totalCents: number
   for (const p of participants) {
     const cents = cfg && cfg.fixedAmounts && cfg.fixedAmounts[p.id] ? cfg.fixedAmounts[p.id] : 0;
     const val = cents ? (cents / 100).toFixed(2) : '';
-    rows += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">';
-    rows += '<label style="flex:1;margin:0;font-size:0.9rem">' + p.displayName + '</label>';
-    rows += '<span style="font-size:0.9rem">$</span>';
-    rows += '<input class="fixed-input" data-pid="' + p.id + '" type="number" min="0" step="0.01" placeholder="0.00" value="' + val + '" style="width:90px;padding:0.4rem;border:1px solid var(--color-border);border-radius:var(--radius);text-align:right" />';
-    rows += '</div>';
+    rows += `<div class="split-row">
+      <label>${p.displayName}</label>
+      <span class="split-unit">$</span>
+      <input class="fixed-input split-input" data-pid="${p.id}" type="number" min="0" step="0.01" placeholder="0.00" value="${val}" />
+    </div>`;
   }
-  return '<div id="fixed-form">'
-    + '<p style="font-size:0.85rem;color:var(--color-muted);margin-bottom:0.5rem">Enter each person&#39;s fixed amount.</p>'
-    + rows
-    + '<div id="fixed-remainder-display" style="font-size:0.875rem;margin-bottom:0.5rem;font-weight:600"></div>'
-    + '<button id="set-fixed-btn" class="btn btn-primary" style="width:100%">Set amounts</button>'
-    + '<div id="fixed-error" class="error-msg" style="margin-top:0.35rem"></div>'
-    + '</div>';
+  return `<div id="fixed-form">
+    <p class="text-sm text-muted" style="margin-bottom:var(--spacing-sm)">Enter each person's fixed amount.</p>
+    ${rows}
+    <div id="fixed-remainder-display" class="text-sm font-semibold" style="margin-bottom:var(--spacing-sm)"></div>
+    <button id="set-fixed-btn" class="btn btn-primary btn-full">Set amounts</button>
+    <div id="fixed-error" class="error-msg" style="margin-top:0.35rem"></div>
+  </div>`;
 }
 
 export function renderSession(
@@ -72,8 +74,8 @@ export function renderSession(
       <p id="session-subtitle">Loading session…</p>
     </header>
     <div class="container">
-      <div id="session-error" class="error-msg" style="margin:1rem 0"></div>
-      <div id="session-content"></div>
+      <div id="session-error" class="error-msg" style="margin:var(--spacing-md) 0"></div>
+      <div id="session-content">${renderSessionSkeleton()}</div>
     </div>
   `;
 
@@ -114,58 +116,59 @@ export function renderSession(
       return;
     }
 
-    // Share link section
-    const shareUrl = `${window.location.origin}${window.location.pathname}#/session/${token}`;
-
-    // Participants section
     const participantRows = participants.map(p =>
-      `<div class="participant-row"><span>${p.displayName}</span>${p.id === stored?.participantId ? '<span style="font-size:0.75rem;color:var(--color-primary)">you</span>' : ''}</div>`
-    ).join('') || '<p style="color:var(--color-muted);font-size:0.9rem">No participants yet.</p>';
+      `<div class="participant-row">
+        <span>${p.displayName}</span>
+        ${p.id === stored?.participantId ? '<span class="text-xs text-primary">you</span>' : ''}
+      </div>`
+    ).join('') || '<p class="text-sm text-muted">No participants yet.</p>';
 
-    // Items section
     const itemRows = items.map(item => {
       const allocBtns = participants.map(p => {
         const isMe = p.id === stored?.participantId;
         return isMe
-          ? `<button class="btn btn-outline alloc-btn" data-item="${item.id}" data-cents="${item.lineTotalCents}" style="font-size:0.75rem;padding:0.3rem 0.6rem">Claim</button>`
+          ? `<button class="btn btn-outline alloc-btn" data-item="${item.id}" data-cents="${item.lineTotalCents}" style="font-size:var(--font-size-xs);padding:0.3rem 0.6rem">Claim</button>`
           : '';
       }).join('');
-      return `<div class="item-row"><span>${item.name} × ${item.quantity}<br><small style="color:var(--color-muted)">${formatCurrency(item.lineTotalCents, bill.currencyCode)}</small></span><span>${allocBtns}</span></div>`;
-    }).join('') || '<p style="color:var(--color-muted);font-size:0.9rem">No items yet.</p>';
+      return `<div class="item-row">
+        <span>${item.name} × ${item.quantity}<br><small class="text-muted">${formatCurrency(item.lineTotalCents, bill.currencyCode)}</small></span>
+        <span>${allocBtns}</span>
+      </div>`;
+    }).join('') || '<p class="text-sm text-muted">No items yet.</p>';
 
     content.innerHTML = `
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="card-header">
           <div>
-            <div style="font-size:1.5rem;font-weight:700;color:var(--color-primary)">${formatCurrency(bill.totalCents, bill.currencyCode)}</div>
-            <div style="font-size:0.8rem;color:var(--color-muted)">Subtotal ${formatCurrency(bill.subtotalCents, bill.currencyCode)} · Tax ${formatCurrency(bill.taxCents, bill.currencyCode)} · Tip ${formatCurrency(bill.tipCents, bill.currencyCode)}</div>
+            <div class="text-2xl text-primary">${formatCurrency(bill.totalCents, bill.currencyCode)}</div>
+            <div class="text-xs text-muted">Subtotal ${formatCurrency(bill.subtotalCents, bill.currencyCode)} · Tax ${formatCurrency(bill.taxCents, bill.currencyCode)} · Tip ${formatCurrency(bill.tipCents, bill.currencyCode)}</div>
           </div>
           <span class="badge badge-${bill.status}">${bill.status}</span>
         </div>
       </div>
 
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-          <h3>Participants (${participants.length})</h3>
-          ${!stored ? '<button id="join-btn" class="btn btn-primary" style="font-size:0.85rem">Join</button>' : ''}
+        <div class="card-header">
+          <h3 class="section-heading" style="margin-bottom:0">Participants (${participants.length})</h3>
+          ${!stored ? '<button id="join-btn" class="btn btn-primary" style="font-size:var(--font-size-sm)">Join</button>' : ''}
         </div>
         ${participantRows}
-        <div style="margin-top:0.75rem">
-          <button id="copy-link-btn" class="btn btn-outline" style="font-size:0.8rem;width:100%">Copy share link</button>
+        <div style="margin-top:var(--spacing-md)">
+          <button id="share-btn" class="btn btn-outline btn-full" style="font-size:var(--font-size-sm)">📤 Share session</button>
         </div>
       </div>
 
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-          <h3>Items (${items.length})</h3>
-          <button id="add-item-btn" class="btn btn-outline" style="font-size:0.85rem">+ Add item</button>
+        <div class="card-header">
+          <h3 class="section-heading" style="margin-bottom:0">Items (${items.length})</h3>
+          <button id="add-item-btn" class="btn btn-outline" style="font-size:var(--font-size-sm)">+ Add item</button>
         </div>
         ${itemRows}
       </div>
 
       <div class="card">
-        <h3 style="margin-bottom:0.75rem">Split mode</h3>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
+        <h3 class="section-heading">Split mode</h3>
+        <div style="display:flex;gap:var(--spacing-sm);flex-wrap:wrap;margin-bottom:var(--spacing-md)">
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'items' ? 'btn-primary' : 'btn-outline'}" data-mode="items">By items</button>
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'percentage' ? 'btn-primary' : 'btn-outline'}" data-mode="percentage">By percentage</button>
           <button class="btn split-mode-btn ${snapshot.splitRules?.[0]?.splitMode === 'fixed' ? 'btn-primary' : 'btn-outline'}" data-mode="fixed">Fixed amount</button>
@@ -174,16 +177,15 @@ export function renderSession(
       </div>
 
       <div class="card">
-        <div style="display:flex;gap:0.5rem">
+        <div style="display:flex;gap:var(--spacing-sm)">
           <button id="compute-btn" class="btn btn-outline" style="flex:1">Calculate</button>
           <button id="finalize-btn" class="btn btn-primary" style="flex:1">Finalize</button>
         </div>
-        <div id="compute-error" class="error-msg" style="margin-top:0.5rem"></div>
-        <div id="totals-section" style="margin-top:1rem"></div>
+        <div id="compute-error" class="error-msg" style="margin-top:var(--spacing-sm)"></div>
+        <div id="totals-section" style="margin-top:var(--spacing-md)"></div>
       </div>
     `;
 
-    // ── Inject split mode forms ──────────────────────────────────────
     const formContainer = app.querySelector<HTMLElement>('#split-mode-form');
     if (formContainer) {
       const activeRule = snapshot.splitRules && snapshot.splitRules[0];
@@ -196,14 +198,12 @@ export function renderSession(
       }
     }
 
-    // ── Event listeners ───────────────────────────────────────────
-
     app.querySelector('#join-btn')?.addEventListener('click', () => {
       showJoinModal(token, () => fetchSession());
     });
 
-    app.querySelector('#copy-link-btn')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(shareUrl).catch(() => {});
+    app.querySelector('#share-btn')?.addEventListener('click', () => {
+      showShareModal(token, bill.title ?? 'Bill split');
     });
 
     app.querySelector('#add-item-btn')?.addEventListener('click', () => {
@@ -223,7 +223,6 @@ export function renderSession(
       });
     });
 
-    // Percentage form
     const pctInputs = app.querySelectorAll<HTMLInputElement>('.pct-input');
     const pctTotalDisplay = app.querySelector<HTMLElement>('#pct-total-display');
     const setPctBtn = app.querySelector<HTMLButtonElement>('#set-pct-btn');
@@ -265,7 +264,6 @@ export function renderSession(
       }
     });
 
-    // Fixed amount form
     const fixedInputs = app.querySelectorAll<HTMLInputElement>('.fixed-input');
     const fixedRemainderDisplay = app.querySelector<HTMLElement>('#fixed-remainder-display');
     const setFixedBtn = app.querySelector<HTMLButtonElement>('#set-fixed-btn');
@@ -349,7 +347,6 @@ export function renderSession(
       }
     });
 
-    // Re-render existing totals if available
     if (state.totals) renderTotals(state.totals, snapshot);
   }
 
@@ -365,13 +362,12 @@ export function renderSession(
       })
       .map(t => {
         const name = participantMap.get(t.participantId)?.displayName ?? 'Unknown';
-        const extra = t.remainderCents > 0 ? ' <small style="color:var(--color-muted)">(+1¢)</small>' : '';
+        const extra = t.remainderCents > 0 ? ' <small class="text-muted">(+1¢)</small>' : '';
         return `<div class="total-row"><span>${name}</span><span>${formatCurrency(t.totalOwedCents, snapshot.bill.currencyCode)}${extra}</span></div>`;
       }).join('');
-    section.innerHTML = `<h4 style="margin-bottom:0.5rem">Split result</h4>${rows}`;
+    section.innerHTML = `<h4 class="section-heading">Split result</h4>${rows}`;
   }
 
-  // Start polling
   poller = createPoller({ onFetch: fetchSession });
   fetchSession().then(() => poller?.start());
 }

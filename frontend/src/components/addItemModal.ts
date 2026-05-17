@@ -1,6 +1,5 @@
 // ── Add item modal ────────────────────────────────────────────────
 // Owner adds a bill item — name, quantity, unit price.
-// lineTotalCents computed and displayed before submit.
 
 import { addItem, ApiError, type BillItemDTO } from '../api';
 import { dollarsToCents, formatCurrency } from '../store';
@@ -14,7 +13,7 @@ export function showAddItemModal(
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h2 style="color:var(--color-primary)">Add item</h2>
+      <h2 class="text-primary">Add item</h2>
       <div class="form-group">
         <label for="item-name">Item name</label>
         <input id="item-name" type="text" placeholder="e.g. Grilled salmon" maxlength="200" />
@@ -27,9 +26,9 @@ export function showAddItemModal(
         <label for="item-price">Unit price</label>
         <input id="item-price" type="number" min="0" step="0.01" placeholder="0.00" />
       </div>
-      <div id="item-total-preview" style="margin-bottom:0.5rem;font-weight:600;color:var(--color-primary)"></div>
+      <div id="item-total-preview" class="font-semibold text-primary" style="margin-bottom:var(--spacing-sm)"></div>
       <div id="item-error" class="error-msg"></div>
-      <div style="display:flex;gap:0.5rem;margin-top:1rem">
+      <div style="display:flex;gap:var(--spacing-sm);margin-top:var(--spacing-md)">
         <button id="item-cancel" class="btn btn-outline" style="flex:1">Cancel</button>
         <button id="item-confirm" class="btn btn-primary" style="flex:2">Add item</button>
       </div>
