@@ -72,6 +72,7 @@ export function renderSession(
     <header class="app-header">
       <h1>GoDutch</h1>
       <p id="session-subtitle">Loading session…</p>
+      <span id="participant-badge" class="participant-badge" style="display:none"></span>
     </header>
     <div class="container">
       <div id="session-error" class="error-msg" style="margin:var(--spacing-md) 0"></div>
@@ -80,6 +81,7 @@ export function renderSession(
   `;
 
   const subtitle = app.querySelector<HTMLElement>('#session-subtitle')!;
+  const participantBadge = app.querySelector<HTMLElement>('#participant-badge')!;
   const errorEl = app.querySelector<HTMLElement>('#session-error')!;
   const content = app.querySelector<HTMLElement>('#session-content')!;
 
@@ -108,6 +110,9 @@ export function renderSession(
     const isFinalized = bill.status === 'finalized';
 
     subtitle.textContent = bill.title ?? 'Split session';
+    const count = participants.length;
+    participantBadge.textContent = `👥 ${count} ${count === 1 ? 'participant' : 'participants'}`;
+    participantBadge.style.display = '';
 
     if (isFinalized && state.totals) {
       content.innerHTML = '';
