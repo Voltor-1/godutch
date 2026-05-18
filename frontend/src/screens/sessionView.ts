@@ -70,7 +70,7 @@ export function renderSession(
 
   app.innerHTML = `
     <header class="app-header">
-      <h1>GoDutch</h1>
+      <h1 id="session-title">GoDutch</h1>
       <p id="session-subtitle">Loading session…</p>
       <span id="participant-badge" class="participant-badge" style="display:none"></span>
     </header>
@@ -80,6 +80,7 @@ export function renderSession(
     </div>
   `;
 
+  const titleEl = app.querySelector<HTMLElement>('#session-title')!;
   const subtitle = app.querySelector<HTMLElement>('#session-subtitle')!;
   const participantBadge = app.querySelector<HTMLElement>('#participant-badge')!;
   const errorEl = app.querySelector<HTMLElement>('#session-error')!;
@@ -109,7 +110,8 @@ export function renderSession(
     const stored = getStoredParticipant(token);
     const isFinalized = bill.status === 'finalized';
 
-    subtitle.textContent = bill.title ?? 'Split session';
+    titleEl.textContent = bill.title || 'GoDutch';
+    subtitle.textContent = bill.title ? 'Split session' : 'Loading session…';
     const count = participants.length;
     participantBadge.textContent = `👥 ${count} ${count === 1 ? 'participant' : 'participants'}`;
     participantBadge.style.display = '';
