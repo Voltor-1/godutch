@@ -33,8 +33,17 @@ export function renderFinalized(
         <h2 class="text-primary">${bill.title ?? 'Bill'}</h2>
         <span class="badge badge-finalized">Finalized</span>
       </div>
+      ${[
+        { label: 'Subtotal', cents: bill.subtotalCents },
+        { label: 'Tax', cents: bill.taxCents },
+        { label: 'Tip', cents: bill.tipCents },
+        { label: 'Service charge', cents: bill.serviceChargeCents },
+      ].filter(r => r.cents > 0).map(r =>
+        `<div class="total-row"><span class="text-muted">${r.label}</span><span>${formatCurrency(r.cents, bill.currencyCode)}</span></div>`
+      ).join('')}
+      <hr class="divider" />
       <div class="total-row" style="margin-bottom:var(--spacing-sm)">
-        <span class="text-muted">Total</span>
+        <span class="font-semibold">Total</span>
         <span class="font-semibold">${formatCurrency(bill.totalCents, bill.currencyCode)}</span>
       </div>
       <hr class="divider" />
