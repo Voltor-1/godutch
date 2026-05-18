@@ -160,8 +160,9 @@ export function renderSession(
           ${!stored ? '<button id="join-btn" class="btn btn-primary" style="font-size:var(--font-size-sm)">Join</button>' : ''}
         </div>
         ${participantRows}
-        <div style="margin-top:var(--spacing-md)">
-          <button id="share-btn" class="btn btn-outline btn-full" style="font-size:var(--font-size-sm)">📤 Share session</button>
+        <div style="margin-top:var(--spacing-md);display:flex;gap:var(--spacing-sm)">
+          <button id="share-btn" class="btn btn-outline" style="font-size:var(--font-size-sm);flex:1">📤 Share</button>
+          <button id="copy-link-btn" class="btn btn-outline" style="font-size:var(--font-size-sm);flex:1">🔗 Copy link</button>
         </div>
       </div>
 
@@ -225,6 +226,18 @@ export function renderSession(
 
     app.querySelector('#share-btn')?.addEventListener('click', () => {
       showShareModal(token, bill.title ?? 'Bill split');
+    });
+
+    app.querySelector('#copy-link-btn')?.addEventListener('click', async () => {
+      const copyBtn = app.querySelector<HTMLButtonElement>('#copy-link-btn')!;
+      const originalText = copyBtn.textContent;
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        copyBtn.textContent = '✅ Copied!';
+      } catch {
+        copyBtn.textContent = '⚠️ Failed';
+      }
+      setTimeout(() => { copyBtn.textContent = originalText; }, 2000);
     });
 
     app.querySelector('#add-item-btn')?.addEventListener('click', () => {
