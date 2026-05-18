@@ -230,3 +230,11 @@ header.app-header p { font-size: var(--font-size-sm); opacity: 0.85; }
   .toast { left: auto; right: var(--spacing-md); bottom: var(--spacing-md); transform: translateY(8px); }
   .toast-visible { transform: translateY(0); }
 }
+
+/* Participant count badge in session header */
+.participant-badge {
+  display: inline-block;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs, 0.25rem);
+}
