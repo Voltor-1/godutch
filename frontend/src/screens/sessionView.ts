@@ -73,6 +73,7 @@ export function renderSession(
       <h1 id="session-title">GoDutch</h1>
       <p id="session-subtitle">Loading session…</p>
       <span id="participant-badge" class="participant-badge" style="display:none"></span>
+      <span id="status-pill" class="status-pill" style="display:none"></span>
     </header>
     <div class="container">
       <div id="session-error" class="error-msg" style="margin:var(--spacing-md) 0"></div>
@@ -112,6 +113,15 @@ export function renderSession(
 
     titleEl.textContent = bill.title || 'GoDutch';
     subtitle.textContent = bill.title ? 'Split session' : 'Loading session…';
+    const statusPill = app.querySelector<HTMLElement>('#status-pill')!;
+    if (isFinalized) {
+      statusPill.textContent = 'Finalized';
+      statusPill.className = 'status-pill status-pill--finalized';
+    } else {
+      statusPill.textContent = 'Active';
+      statusPill.className = 'status-pill status-pill--active';
+    }
+    statusPill.style.display = '';
     const count = participants.length;
     participantBadge.textContent = `👥 ${count} ${count === 1 ? 'participant' : 'participants'}`;
     participantBadge.style.display = '';
