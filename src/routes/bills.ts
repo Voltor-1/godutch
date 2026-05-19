@@ -163,7 +163,7 @@ bills.delete('/:token', async (c) => {
     return err(c, "VALIDATION_ERROR", "Invalid session token");
   }
   const raw = await c.req.json().catch(() => null);
-  const parsed = parseBody(deleteSessionSchema, raw);
+  const parsed = parseBody(z.object({ participantToken: z.string().min(16) }), raw);
   if ('error' in parsed) {
     return err(c, 'VALIDATION_ERROR', parsed.error);
   }
