@@ -238,3 +238,22 @@ header.app-header p { font-size: var(--font-size-sm); opacity: 0.85; }
   color: var(--color-text-muted);
   margin-top: var(--spacing-xs, 0.25rem);
 }
+
+/* Session status pill in header */
+.status-pill {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 99px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-top: var(--spacing-xs, 0.25rem);
+}
+.status-pill--active {
+  background: var(--color-success);
+  color: white;
+}
+.status-pill--finalized {
+  background: var(--color-text-muted);
+  color: white;
+}
