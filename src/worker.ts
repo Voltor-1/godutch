@@ -4,6 +4,7 @@ import { AppError } from './lib/errors';
 import { err } from './lib/response';
 import type { Env } from './lib/supabase';
 import health from './routes/health';
+import version from './routes/version';
 import bills from './routes/bills';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -18,6 +19,7 @@ app.use('*', cors({
 
 // ── Routes ──────────────────────────────────────────────────────
 app.route('/health', health);
+app.route('/version', version);
 app.route('/sessions', bills);
 
 // ── Global error handler ─────────────────────────────────────────
