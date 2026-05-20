@@ -85,7 +85,7 @@ bills.post('/', async (c) => {
     const { data, error } = await client
       .rpc('create_session', {
         p_title: body.title ?? null,
-        p_currency_code: body.currencyCode.toUpperCase(),
+        p_currency_code: body.currencyCode?.toUpperCase() ?? 'USD'.toUpperCase(),
         p_share_token: shareToken,
         p_subtotal_cents: body.subtotalCents,
         p_tax_cents: body.taxCents,
@@ -163,7 +163,7 @@ bills.delete('/:token', async (c) => {
     return err(c, "VALIDATION_ERROR", "Invalid session token");
   }
   const raw = await c.req.json().catch(() => null);
-  const parsed = parseBody(deleteSessionSchema, raw);
+  const parsed = parseBody(z.object({ participantToken: z.string().min(16) }), raw);
   if ('error' in parsed) {
     return err(c, 'VALIDATION_ERROR', parsed.error);
   }
